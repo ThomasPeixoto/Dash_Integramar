@@ -29,6 +29,8 @@
 suppressPackageStartupMessages({
   library(jsonlite)
   library(sf)
+  library(dplyr)
+  library(tidyr)
 })
 
 args      <- commandArgs(trailingOnly = TRUE)
@@ -121,19 +123,135 @@ prep <- function(tbl, keep = character()) {
 # Camada 1 — core.json
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Classificacao derivada do bentos
+# ---------------------------------------------------------------------------
+#
+# A coluna `functional_group` vem pronta do CSV de origem
+# (BRislands_2014_2024_cover.csv) com cinco niveis, e CONTINUA INTACTA: nada
+# aqui a modifica, e o ETL em R do painel Shiny nao e tocado.
+#
+# O problema e que "Other" reunia 1.835 das 5.261 linhas (35% do conjunto)
+# misturando coisas sem relacao ecologica entre si -- e o turf, que e a
+# categoria mais abundante de todo o levantamento, nao existia como categoria.
+#
+#   Turf filamentous   1.155    TFL
+#   Calcareous Turf      540    TCC
+#   Unknown              107    Unk
+#   Cyanobacteria         29    CIAN
+#   other disease          4    OD
+#
+# Esta derivacao desmonta apenas o "Other". Os outros quatro niveis da fonte
+# (Algae, Hard coral, Soft Substrate, Other Invertebrates) passam intocados.
+BENTHOS_SPLIT <- c(
+  "TFL"  = "Turf filamentous",
+  "TCC"  = "Turf calcareous",
+  "CIAN" = "Cyanobacteria",
+  "Unk"  = "Unclassified",
+  "OD"   = "Unclassified"
+)
+
+benthos_fine <- d$benthos_raw %>%
+  mutate(fg = ifelse(label_code %in% names(BENTHOS_SPLIT),
+                     unname(BENTHOS_SPLIT[label_code]),
+                     functional_group))
+
+# Se a fonte ganhar um label_code novo dentro de "Other", ele cairia em
+# "Other" de novo e passaria despercebido. Aqui nao passa.
+orfaos <- benthos_fine %>% filter(fg == "Other") %>% distinct(label_code, name)
+if (nrow(orfaos) > 0) {
+  stop("label_code em 'Other' sem destino na classificacao derivada: ",
+       paste(orfaos$label_code, collapse = ", "))
+}
+
+fg_fine_levels <- sort(unique(benthos_fine$fg))
+msg("bentos: %d grupos derivados (%s)", length(fg_fine_levels),
+    paste(fg_fine_levels, collapse = ", "))
+
+# --- Nivel 1: cobertura por fotoquadrante -----------------------------------
+# Mesma logica do ETL original. Varios label_code caem no mesmo grupo dentro
+# de um fotoquadrante, por isso somamos; e preenchemos com zero os grupos
+# ausentes, porque tirar media so onde o grupo aparece superestima a cobertura.
+benthos_quad <- benthos_fine %>%
+  group_by(island, Site, site_label, Year, stratum, stratum_label, uniqueID,
+           decimalLatitude, decimalLongitude, fg) %>%
+  summarise(cover = sum(cover, na.rm = TRUE), .groups = "drop") %>%
+  group_by(island, Site, site_label, Year, stratum, stratum_label, uniqueID,
+           decimalLatitude, decimalLongitude) %>%
+  tidyr::complete(fg = fg_fine_levels, fill = list(cover = 0)) %>%
+  ungroup()
+
+# --- Nivel 2: media por sitio/ano, balanceada entre estratos ----------------
+# Primeiro a media dos fotoquadrantes dentro de cada estrato, depois a media
+# entre estratos: sem isso o estrato com mais fotos domina (em Cagarras 2023
+# sao 51 fotos no fundo contra 28 no raso).
+benthos_year_fine <- benthos_quad %>%
+  group_by(island, Site, site_label, Year, stratum, fg,
+           decimalLatitude, decimalLongitude) %>%
+  summarise(cover_stratum = mean(cover), n_quads = n(), .groups = "drop") %>%
+  group_by(island, Site, site_label, Year, fg,
+           decimalLatitude, decimalLongitude) %>%
+  summarise(mean_cover = mean(cover_stratum),
+            n_strata   = n(),
+            n_quads    = sum(n_quads),
+            .groups = "drop") %>%
+  left_join(
+    benthos_quad %>%
+      group_by(Site, Year, fg) %>%
+      summarise(sd_cover = sd(cover), .groups = "drop"),
+    by = c("Site", "Year", "fg")
+  ) %>%
+  mutate(n_records = n_quads) %>%
+  rename(functional_group = fg)
+
+# --- Verificacao ------------------------------------------------------------
+# Somar os grupos derivados de volta aos cinco da fonte tem que reproduzir,
+# numero a numero, a tabela que o ETL do painel Shiny produz. E o que garante
+# que a derivacao so reparticionou -- nao mexeu em nenhum valor.
+reagrupado <- benthos_year_fine %>%
+  mutate(coarse = ifelse(functional_group %in% unname(BENTHOS_SPLIT),
+                         "Other", functional_group)) %>%
+  group_by(Site, Year, coarse) %>%
+  summarise(derivado = sum(mean_cover), .groups = "drop")
+
+referencia <- d$benthos_site_year_fg %>%
+  transmute(Site, Year, coarse = functional_group, original = mean_cover)
+
+conf <- full_join(reagrupado, referencia, by = c("Site", "Year", "coarse"))
+desvio <- max(abs(conf$derivado - conf$original), na.rm = TRUE)
+stopifnot(
+  "a classificacao derivada nao reproduz a original ao ser reagrupada" =
+    nrow(conf) == nrow(referencia) && !anyNA(conf$derivado) && desvio < 1e-9
+)
+msg("bentos: reagrupamento confere com o ETL original (desvio max %.2e)", desvio)
+
+# A cobertura continua somando 100% por sitio/ano, como na fonte.
+soma100 <- benthos_year_fine %>%
+  group_by(Site, Year) %>%
+  summarise(total = sum(mean_cover), .groups = "drop")
+stopifnot("a cobertura deixou de somar 100% por sitio/ano" =
+            max(abs(soma100$total - 100)) < 1e-9)
+
+benthos_comp_fine <- benthos_year_fine %>%
+  transmute(island, Site, site_label, Year, functional_group,
+            decimalLatitude, decimalLongitude,
+            total_cover = mean_cover,
+            proportion  = mean_cover)
+
 core <- list(
   meta = list(
     generated = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
     source    = "noronha_integrated.rds",
-    datasets  = c("benthos", "fish", "fishers", "pollution", "productivity")
+    datasets  = c("benthos", "fish", "fishers", "pollution", "productivity"),
+    benthos_groups = fg_fine_levels
   ),
   # sites_metadata mantem site_label: e a tabela de lookup, o rotulo vive aqui.
   sites            = encode_table(round_coords(as.data.frame(d$sites_metadata))),
   site_coords      = encode_table(prep(d$site_dataset_coords)),
 
   benthos_summary  = encode_table(prep(d$benthos_site_summary)),
-  benthos_year_fg  = encode_table(prep(d$benthos_site_year_fg)),
-  benthos_comp     = encode_table(prep(d$benthos_composition)),
+  benthos_year_fg  = encode_table(prep(benthos_year_fine)),
+  benthos_comp     = encode_table(prep(benthos_comp_fine)),
 
   fish_summary     = encode_table(prep(d$fish_site_summary)),
   fish_year        = encode_table(prep(d$fish_site_year)),

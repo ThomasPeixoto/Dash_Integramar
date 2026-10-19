@@ -307,8 +307,12 @@ async function renderTemporal() {
     return;
   }
 
-  chartTrend.setOption(trendOption(rows, { type: store.get('tType'), unit }), true);
-  chartHeat.setOption(heatmapOption(rows, RAMP[ds] ?? RAMP.datasets, unit), true);
+  // No bentos as chaves de grupo sao os valores do CSV de origem, em ingles;
+  // a familia dos peixes ja vem como rotulo pronto do ETL.
+  const nameOf = ds === 'benthos' ? (g) => varLabel('benthos', g) : (g) => g;
+
+  chartTrend.setOption(trendOption(rows, { type: store.get('tType'), unit, nameOf }), true);
+  chartHeat.setOption(heatmapOption(rows, RAMP[ds] ?? RAMP.datasets, unit, nameOf), true);
 
   $('#trend-sub').textContent = ds === 'benthos'
     ? (getLang() === 'pt' ? 'Cobertura média por grupo funcional (%)' : 'Mean cover by functional group (%)')

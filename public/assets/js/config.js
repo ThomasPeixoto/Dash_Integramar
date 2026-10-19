@@ -35,12 +35,18 @@ export const MODE_VARS = {
   benthos: {
     src: 'benthos_comp', field: 'proportion', filterField: 'functional_group',
     unit: '%',
+    // A ordem segue a leitura ecológica, não o alfabeto: produtores primários
+    // primeiro, depois coral e invertebrados, por último substrato e o que
+    // não foi identificado.
     options: [
       { v: 'Algae',               pt: 'Macroalgas',           en: 'Macroalgae' },
+      { v: 'Turf filamentous',    pt: 'Turf filamentoso',     en: 'Filamentous turf' },
+      { v: 'Turf calcareous',     pt: 'Turf calcário',        en: 'Calcareous turf' },
       { v: 'Hard coral',          pt: 'Coral Construtor',     en: 'Hard Coral' },
       { v: 'Other Invertebrates', pt: 'Outros Invertebrados', en: 'Other Invertebrates' },
       { v: 'Soft Substrate',      pt: 'Substrato Friável',    en: 'Soft Substrate' },
-      { v: 'Other',               pt: 'Outro',                en: 'Other' },
+      { v: 'Cyanobacteria',       pt: 'Cianobactérias',       en: 'Cyanobacteria' },
+      { v: 'Unclassified',        pt: 'Não classificado',     en: 'Unclassified' },
     ],
   },
   fish: {

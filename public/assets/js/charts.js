@@ -21,9 +21,25 @@ const CAT = [
   '#2B3466', '#1E5A61',
 ];
 
+// Cores fixas para os grupos do bentos, para que a leitura não mude conforme
+// o recorte: turf nos verdes, coral no coral, substrato e não-classificado
+// em cinza. Os demais grupos (famílias de peixe, por exemplo) seguem pegando
+// a próxima cor livre da paleta.
+const FIXED = {
+  'Algae':               '#3C9BA5',
+  'Turf filamentous':    '#7FC4CB',
+  'Turf calcareous':     '#A9D8CF',
+  'Hard coral':          '#F76043',
+  'Other Invertebrates': '#982263',
+  'Soft Substrate':      '#C9B79C',
+  'Cyanobacteria':       '#6B7FC7',
+  'Unclassified':        '#A8B2C8',
+};
+
 const colorFor = (() => {
   const m = new Map();
   return (key) => {
+    if (FIXED[key]) return FIXED[key];
     if (key === 'Other' || key === 'Outro') return '#A8B2C8';
     if (!m.has(key)) m.set(key, CAT[m.size % CAT.length]);
     return m.get(key);
@@ -33,7 +49,7 @@ const colorFor = (() => {
 /** Base comum a todos os graficos: sem grade pesada, fonte da marca. */
 const BASE = () => ({
   textStyle: { fontFamily: "Inter, system-ui, sans-serif", color: '#1a1a2e' },
-  grid: { left: 54, right: 20, top: 44, bottom: 44, containLabel: true },
+  grid: { left: 54, right: 20, top: 62, bottom: 44, containLabel: true },
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255,255,255,.97)',
@@ -43,8 +59,11 @@ const BASE = () => ({
     textStyle: { color: '#1a1a2e', fontSize: 12.5 },
     extraCssText: 'box-shadow:0 12px 40px rgba(32,38,75,.16);border-radius:10px;',
   },
+  // 'plain' em vez de 'scroll': com 8 grupos funcionais a legenda rolante
+  // paginava e cortava os nomes ("Turf c..."). Assim ela quebra em linhas e
+  // mostra tudo de uma vez; o grid se afasta do topo para dar lugar.
   legend: {
-    type: 'scroll', top: 4, icon: 'roundRect',
+    type: 'plain', top: 4, icon: 'roundRect',
     itemWidth: 11, itemHeight: 11, itemGap: 14,
     textStyle: { color: '#5a6a8a', fontSize: 11.5 },
   },
@@ -127,7 +146,12 @@ function aggregate(rows) {
 // 1. Tendencia por grupo
 // ---------------------------------------------------------------------------
 
-export function trendOption(rows, { type = 'lines', unit = '' } = {}) {
+/**
+ * `nameOf` traduz a chave do grupo para exibicao. A chave crua continua sendo
+ * o que define a cor (colorFor) e o que identifica a serie internamente, para
+ * que trocar de idioma nao troque as cores do grafico.
+ */
+export function trendOption(rows, { type = 'lines', unit = '', nameOf = (g) => g } = {}) {
   const agg = aggregate(rows);
   const years = uniq(agg.map((r) => r.Year)).sort((a, b) => a - b);
   const groups = uniq(agg.map((r) => r.group)).sort();
@@ -143,7 +167,7 @@ export function trendOption(rows, { type = 'lines', unit = '' } = {}) {
       xAxis: { ...BASE().xAxis, data: years },
       yAxis: { ...BASE().yAxis, max: 100, axisLabel: { ...BASE().yAxis.axisLabel, formatter: '{value}%' } },
       series: groups.map((g) => ({
-        name: g, type: 'line', stack: 'one', smooth: 0.25,
+        name: nameOf(g), type: 'line', stack: 'one', smooth: 0.25,
         showSymbol: false,
         lineStyle: { width: 0.5, color: colorFor(g) },
         areaStyle: { color: colorFor(g), opacity: 0.78 },
@@ -182,7 +206,7 @@ export function trendOption(rows, { type = 'lines', unit = '' } = {}) {
       });
     }
     series.push({
-      name: g, type: 'line', smooth: 0.25,
+      name: nameOf(g), type: 'line', smooth: 0.25,
       symbol: 'circle', symbolSize: 7,
       itemStyle: { color: col, borderColor: '#fff', borderWidth: 1.5 },
       lineStyle: { color: col, width: 2.5 },
@@ -194,7 +218,7 @@ export function trendOption(rows, { type = 'lines', unit = '' } = {}) {
 
   return {
     ...BASE(),
-    legend: { ...BASE().legend, data: groups },
+    legend: { ...BASE().legend, data: groups.map(nameOf) },
     xAxis: { ...BASE().xAxis, data: years },
     yAxis: { ...BASE().yAxis, axisLabel: { ...BASE().yAxis.axisLabel, formatter: (v) => `${v}${unit}` } },
     tooltip: {
@@ -270,7 +294,7 @@ export function taxonOption(rows, selected, unit = '') {
 // 3. Mapa de calor ano x grupo
 // ---------------------------------------------------------------------------
 
-export function heatmapOption(rows, ramp, unit = '') {
+export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g) {
   const agg = aggregate(rows);
   const years = uniq(agg.map((r) => r.Year)).sort((a, b) => a - b);
   const groups = uniq(agg.map((r) => r.group)).sort().reverse();
@@ -291,12 +315,12 @@ export function heatmapOption(rows, ramp, unit = '') {
       ...BASE().tooltip,
       trigger: 'item',
       formatter: (p) =>
-        `<div style="font-weight:700;margin-bottom:4px">${groups[p.data[1]]}</div>
+        `<div style="font-weight:700;margin-bottom:4px">${nameOf(groups[p.data[1]])}</div>
          ${years[p.data[0]]} · <b>${fmt(p.data[2], 2)}${unit}</b>`,
     },
     xAxis: { ...BASE().xAxis, data: years, splitArea: { show: false } },
     yAxis: {
-      type: 'category', data: groups,
+      type: 'category', data: groups.map(nameOf),
       axisLine: { show: false }, axisTick: { show: false },
       axisLabel: { color: '#5a6a8a', fontSize: 11 },
     },
