@@ -18,11 +18,13 @@ permissions:
   pages: write
   id-token: write
 
-# Deixa a execucao em curso terminar e descarta as intermediarias: varios
-# commits seguidos nao devem enfileirar varios deploys.
+# cancel-in-progress: true — num site de publicação só a última versão
+# importa. Com `false` (o padrão do workflow inicial do GitHub, pensado para
+# não interromper um deploy de produção em curso) uma execução presa em
+# `waiting` segurava todas as seguintes na fila indefinidamente.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:

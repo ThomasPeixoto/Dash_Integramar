@@ -31,6 +31,7 @@ suppressPackageStartupMessages({
   library(sf)
   library(dplyr)
   library(tidyr)
+  library(data.table)
 })
 
 args      <- commandArgs(trailingOnly = TRUE)
@@ -353,10 +354,18 @@ if (file.exists(rf)) {
 if (file.exists(rb)) {
   B <- readRDS(rb)
   core$reef_benthos_sites   <- encode_table(round_coords(as.data.frame(B$sites)))
-  core$reef_benthos_year    <- encode_table(as.data.frame(B$site_year))
-  core$reef_benthos_summary <- encode_table(as.data.frame(B$summary))
-  msg("ReefSYN bentos: %d sitios, %d linhas sitio/ano/grupo",
-      nrow(B$sites), nrow(B$site_year))
+  # Corais: camada nacional, os cinco datasets. Composicao relativa dentro da
+  # assembleia de coral, que sobrevive a ausencia do denominador.
+  core$coral_sy_sp   <- encode_table(as.data.frame(B$coral_sy_sp))
+  core$coral_sy      <- encode_table(as.data.frame(B$coral_sy))
+  core$coral_summary <- encode_table(as.data.frame(B$coral_summary))
+  # Comunidade: XIV, XV e XVI, cada um na sua camada. O campo `ds` viaja junto
+  # e o front-end nunca cruza datasets.
+  core$com_sy      <- encode_table(as.data.frame(B$com_sy))
+  core$com_summary <- encode_table(as.data.frame(B$com_summary))
+  msg("ReefSYN bentos: %d sitios · corais %d linhas, %d especies · comunidade %d linhas, %d datasets",
+      nrow(B$sites), nrow(B$coral_sy_sp), uniqueN(B$coral_sy_sp$species),
+      nrow(B$com_sy), uniqueN(B$com_sy$ds))
 } else {
   msg("ReefSYN bentos ausente (%s)", rb)
 }

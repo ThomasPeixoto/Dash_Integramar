@@ -307,3 +307,84 @@ export function readE1Nacional(rows, rotulo = (g) => g) {
     ? `${b(fmtInt(censos))} censos em ${b(regioes.length)} regiões, de ${b(anos[0])} a ${b(anos[anos.length - 1])}. ${b(rotulo(maior.g))} responde por ${b(parteMaior + '%')} deles e cobre ${maior.ini}–${maior.fim}; as demais entram e saem ao longo do período. Por isso cada região é uma linha própria: uma média nacional mudaria junto com quem foi amostrado naquele ano, não com os peixes.`
     : `${b(fmtInt(censos))} censuses across ${b(regioes.length)} regions, from ${b(anos[0])} to ${b(anos[anos.length - 1])}. ${b(rotulo(maior.g))} accounts for ${b(parteMaior + '%')} of them and spans ${maior.ini}–${maior.fim}; the others come and go across the period. That is why each region is its own line: a national average would move with who was sampled that year, not with the fish.`;
 }
+
+// ---------------------------------------------------------------------------
+// Eixo 1 — corais e comunidade bentônica
+// ---------------------------------------------------------------------------
+
+/**
+ * Corais: a composição relativa dentro da assembleia é válida mesmo sem o
+ * denominador, porque a fração removida pela exportação Darwin Core (substrato,
+ * sedimento, turf) é a mesma para todos os táxons do evento e some na razão.
+ * A frase diz quantas regiões a seleção cobre, porque a composição muda muito
+ * entre elas e uma leitura "do Brasil" seria geografia disfarçada.
+ */
+export function readE1Corais(core, rows, alvo) {
+  if (!rows.length) {
+    return pt() ? 'Sem registro de coral identificado a espécie no recorte atual.'
+                : 'No coral identified to species in the current selection.';
+  }
+
+  const anos = uniq(rows.map((r) => r.Year)).sort((a, b) => a - b);
+  const sitios = uniq(rows.map((r) => r.Site));
+  const regioes = uniq(sitios
+    .map((c) => (core.national?.sites ?? []).find((s) => s.Site === c)?.region)
+    .filter(Boolean));
+
+  // Espécie dominante no último ano com registro.
+  const ultimo = anos[anos.length - 1];
+  const porSp = [...groupBy(rows.filter((r) => r.Year === ultimo), 'group')]
+    .map(([sp, g]) => [sp, mean(g.map((r) => r.value))])
+    .sort((a, b) => b[1] - a[1]);
+  const esp = uniq(rows.map((r) => r.group)).length;
+
+  const alcance = regioes.length > 1
+    ? (pt() ? `${b(regioes.length)} regiões` : `${b(regioes.length)} regions`)
+    : (pt() ? `a região de ${b(regioes[0] ?? '—')}` : `the ${b(regioes[0] ?? '—')} region`);
+
+  const base = pt()
+    ? `${b(esp)} espécies de coral em ${b(sitios.length)} sítios, cobrindo ${alcance}, de ${b(anos[0])} a ${b(ultimo)}. Em ${ultimo}, ${b(porSp[0][0])} responde por ${b(fmt(porSp[0][1], 1) + '%')} da assembleia.`
+    : `${b(esp)} coral species at ${b(sitios.length)} sites, spanning ${alcance}, from ${b(anos[0])} to ${b(ultimo)}. In ${ultimo}, ${b(porSp[0][0])} accounts for ${b(fmt(porSp[0][1], 1) + '%')} of the assemblage.`;
+
+  // A ressalva só aparece quando de fato se aplica.
+  const ressalva = regioes.length > 1
+    ? (pt() ? ' São percentuais DENTRO da assembleia de coral, não cobertura do fundo — a exportação Darwin Core não traz substrato nem turf. E a composição difere muito entre regiões: escolha uma para ler tendência.'
+            : ' These are percentages WITHIN the coral assemblage, not cover of the substrate — the Darwin Core export carries neither substrate nor turf. Composition also differs sharply among regions: pick one to read a trend.')
+    : (pt() ? ' São percentuais dentro da assembleia de coral, não cobertura do fundo.'
+            : ' These are percentages within the coral assemblage, not cover of the substrate.');
+
+  return base + ressalva;
+}
+
+/**
+ * Comunidade bentônica: cada dataset mede um universo diferente de organismos,
+ * e a composição é relativa ao que AQUELE dataset enxerga. Comparar entre
+ * datasets produziria contraste de protocolo com cara de contraste ecológico.
+ */
+export function readE1Comunidade(core, rows, dsAtivo) {
+  if (!rows.length) {
+    return pt() ? `Sem dados de comunidade bentônica no dataset ${b(dsAtivo)} para o recorte atual.`
+                : `No benthic community data in dataset ${b(dsAtivo)} for the current selection.`;
+  }
+
+  const anos = uniq(rows.map((r) => r.Year)).sort((a, c) => a - c);
+  const sitios = uniq(rows.map((r) => r.Site)).length;
+  const ultimo = anos[anos.length - 1];
+  const porGrupo = [...groupBy(rows.filter((r) => r.Year === ultimo), 'group')]
+    .map(([g, rs]) => [g, mean(rs.map((r) => r.value))])
+    .sort((a, c) => c[1] - a[1]);
+
+  const naoId = porGrupo.find(([g]) => /não identificado|unidentified/i.test(g));
+  const vivos = porGrupo.filter(([g]) => g !== naoId?.[0]);
+
+  const extra = naoId
+    ? (pt() ? ` ${b(fmt(naoId[1], 1) + '%')} do quadrante é substrato, turf ou material sem identidade taxonômica — essa fração só sobreviveu à exportação neste dataset.`
+            : ` ${b(fmt(naoId[1], 1) + '%')} of the quadrat is substrate, turf or material without taxonomic identity — that fraction survived the export only in this dataset.`)
+    : (pt() ? ' Substrato e turf foram removidos na exportação Darwin Core, então os percentuais são relativos ao que foi identificado, não ao fundo.'
+            : ' Substrate and turf were stripped by the Darwin Core export, so percentages are relative to what was identified, not to the substrate.');
+
+  return (pt()
+    ? `Dataset ${b(dsAtivo)}: ${b(sitios)} sítios, ${b(anos[0])}–${b(ultimo)}. Em ${ultimo}, o grupo mais abundante é ${b(vivos[0]?.[0] ?? '—')}, com ${b(fmt(vivos[0]?.[1] ?? 0, 1) + '%')}.`
+    : `Dataset ${b(dsAtivo)}: ${b(sitios)} sites, ${b(anos[0])}–${b(ultimo)}. In ${ultimo} the most abundant group is ${b(vivos[0]?.[0] ?? '—')}, at ${b(fmt(vivos[0]?.[1] ?? 0, 1) + '%')}.`)
+    + extra;
+}

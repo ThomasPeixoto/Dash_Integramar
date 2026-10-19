@@ -1,43 +1,38 @@
 ## =============================================================================
-## ReefSYN XV -> bentos das ilhas oceanicas (cobertura RELATIVA)
+## ReefSYN XII-XVI -> duas camadas bentonicas distintas
 ## =============================================================================
 ##
-## Dos cinco datasets bentonicos do ReefSYN (XII-XVI) so o XV tem composicao
-## fechada. Soma da cobertura por evento, medida em 19/10/2026:
+## Os cinco datasets bentonicos NAO sao um conjunto so. Medido em 19/10/2026:
 ##
-##   XII   mediana  35%            0,6% dos eventos entre 95 e 105
-##   XIII  mediana  56%            4,2%
-##   XIV   mediana 100%, p90 432%  23,8%
-##   XV    mediana 100%, p90 100%  99,9%   <- unico fechado
-##   XVI   mediana 650%            0,0%
+##   ds   taxons  o que resolve                      soma/evento
+##   XII      33  corais a especie, quase nenhuma alga      35%
+##   XIII     24  corais a especie, quase nenhuma alga      56%
+##   XIV      83  comunidade completa                      100% (p90 432)
+##   XV       45  comunidade completa                      100%
+##   XVI      59  comunidade completa                      650%
 ##
-## Todos declaram measurementType = "Percentage cover", mas nao compartilham
-## denominador. Os outros quatro ficam de fora ate que o deles seja resolvido.
+## Duas coisas quebram a comparacao direta entre eles:
 ##
-## O XV e o PELD-ILOC das ilhas oceanicas: Noronha, Rocas, Sao Pedro e Sao
-## Paulo e Trindade, 2013-2019, mesmo protocolo do BRislands_2014_2024_cover.csv
-## que ja alimenta o painel (2021-2024).
+## 1. O DENOMINADOR. A exportacao DwC remove substrato, sedimento, turf e os
+##    grupos morfo-anatomicos "because they do not represent taxonomical
+##    entities" (eventRemarks). So o XV manteve esses registros no eMOF, sem
+##    identidade -- nos outros quatro eles sumiram do arquivo.
 ##
-## SOBRE O QUE FALTA NO XV
+## 2. O UNIVERSO AMOSTRADO. XII e XIII sao levantamentos de CORAL: a lista de
+##    taxons deles e quase toda Scleractinia. Compor "algas calcarias" entre
+##    todos daria 0% no XII e 65% no XIV -- artefato de protocolo, nao recife.
 ##
-## A cobertura do eMOF soma 100% por evento, mas 40% dos registros (5.408 de
-## 13.671) nao tem linha correspondente em DF_occ. O proprio eventRemarks diz
-## por que:
+## Dai as duas camadas:
 ##
-##   "Bare substrate, sediment, lost information (shade, quadrat, tape),
-##    morpho-anatomical benthic groups and turf were not included in the data
-##    because they do not represent taxonomical entities in which DwC
-##    standards are based. (...) Please contact the data curator Cesar
-##    Cordeiro to have the complete dataset with verbatimIdentification"
+##   CORAIS      nacional, os cinco datasets. Corais escleractineos a especie
+##               sao o vocabulario que todos compartilham: 13 das 14 especies
+##               aparecem em 2+ datasets, 2 nos cinco. A composicao RELATIVA
+##               entre corais e valida mesmo sem o denominador, porque a
+##               fracao removida e a mesma para todos os taxons do evento e
+##               some na razao.
 ##
-## Ou seja: substrato, sedimento e TURF estao medidos, mas a exportacao DwC os
-## deixou sem identidade. Aqui eles entram como um unico balde rotulado, o que
-## preserva o denominador (a cobertura continua somando 100%) sem fingir saber
-## o que nao sabemos.
-##
-## Para desmembrar esse balde -- e so entao comparar com a serie de Noronha
-## 2021-2024, onde turf e substrato sao categorias proprias -- e preciso o
-## dataset completo com verbatimIdentification, com o Cesar Cordeiro.
+##   COMUNIDADE  XIV, XV e XVI, cada um na sua camada, NUNCA somados. XII e
+##               XIII ficam de fora: nao amostram a comunidade.
 ##
 ## Saida: data/reefsyn_benthos.rds
 ## =============================================================================
@@ -53,132 +48,152 @@ msg <- function(...) cat(sprintf(...), "\n", sep = "")
 ler <- function(f) fread(file.path(DWC, f), encoding = "Latin-1",
                          colClasses = "character", header = TRUE)
 
-ev <- ler("XV/event_core.csv")
-ev <- unique(data.table(
-  eventID = ev$eventID,
-  year    = as.integer(substr(ev$eventDate, 1, 4)),
-  lon     = as.numeric(ev$decimalLongitude),
-  lat     = as.numeric(ev$decimalLatitude),
-  locality = ev$locality
-), by = "eventID")
-ev <- ev[!is.na(year) & !is.na(lon) & !is.na(lat)]
+DATASETS   <- c("XII", "XIII", "XIV", "XV", "XVI")
+COMUNIDADE <- c("XIV", "XV", "XVI")
 
-occ <- ler("XV/DF_occ.csv")
-# Sem eventID aqui: ele vem do eMOF, que e a tabela que tem TODAS as medidas.
-# Puxa-lo do DF_occ deixaria os 40% sem identidade taxonomica com eventID
-# ausente, e o join seguinte os descartaria em silencio.
-occ <- unique(occ[, .(occurrenceID, sp = scientificNameAccepted,
-                      phylum, class, order)], by = "occurrenceID")
-
-emof <- ler("XV/DF_eMOF.csv")
-cov <- unique(emof[tolower(measurementType) == "percentage cover",
-                   .(eventID, occurrenceID, cover = as.numeric(measurementValue))],
-              by = "occurrenceID")
-
-# Partimos do eMOF (toda a cobertura) e trazemos a taxonomia quando existe.
-# Comecar pelo DF_occ perderia os 40% sem identidade taxonomica e o
-# denominador cairia de 100% para ~55% sem aviso.
-occ <- merge(cov, occ, by = "occurrenceID", all.x = TRUE)
-occ <- merge(occ, ev, by = "eventID")
-occ <- occ[!is.na(cover) & cover > 0]
-msg("eMOF: %d medidas de cobertura, %d sem identidade taxonomica (%.0f%%)",
-    nrow(occ), sum(is.na(occ$sp)), 100 * mean(is.na(occ$sp)))
-
-## ---- Grupos funcionais a partir da taxonomia --------------------------------
-## O XV nao traz coluna de grupo funcional; derivamos de filo/classe/ordem.
-## As algas calcarias ficam separadas das carnosas porque tem sinal ecologico
-## oposto e juntas somam metade da cobertura do conjunto.
-grupo <- function(ph, cl, od) {
-  fifelse(ph == "Cyanobacteria", "Cyanobacteria",
-  fifelse(od %in% c("Corallinales", "Hapalidiales"), "Calcareous algae",
-  fifelse(ph %in% c("Rhodophyta", "Ochrophyta", "Chlorophyta"), "Fleshy macroalgae",
-  fifelse(od == "Scleractinia", "Hard coral",
-  fifelse(od == "Zoantharia", "Zoantharia",
-  fifelse(ph == "Porifera", "Sponges",
-  fifelse(ph %in% c("Chordata", "Bryozoa", "Echinodermata", "Mollusca",
-                    "Annelida", "Arthropoda", "Cnidaria"), "Other invertebrates",
-          "Unclassified")))))))
-}
-occ[, fg := fifelse(is.na(sp) | sp == "", "Substrate, turf and unidentified",
-                    grupo(phylum, class, order))]
-
-orfaos <- occ[fg == "Unclassified" & !is.na(sp), .(cob = sum(cover)), by = .(sp, phylum, class, order)]
-if (nrow(orfaos)) {
-  msg("taxons sem grupo funcional (%.2f%% da cobertura):",
-      100 * sum(orfaos$cob) / sum(occ$cover))
-  print(orfaos[order(-cob)][1:min(5, .N)])
+regiao <- function(lat) {
+  fifelse(lat > -1,   "Ilhas equatoriais",
+  fifelse(lat > -5.5, "Noronha e Rocas",
+  fifelse(lat > -10,  "Nordeste",
+  fifelse(lat > -15,  "Bahia",
+  fifelse(lat > -20,  "Abrolhos e ES",
+  fifelse(lat > -24,  "Rio de Janeiro",
+  fifelse(lat > -26,  "Sao Paulo", "Sul")))))))
 }
 
-## ---- Regiao e sitio ---------------------------------------------------------
-occ[, `:=`(lon = round(lon, 5), lat = round(lat, 5))]
-sitios <- occ[, .(locality = na.omit(locality)[1], n_eventos = uniqueN(eventID),
-                  ano_min = min(year), ano_max = max(year)), by = .(lon, lat)]
+## ---- Leitura ----------------------------------------------------------------
+tudo <- rbindlist(lapply(DATASETS, function(d) {
+  ev <- ler(file.path(d, "event_core.csv"))
+  ev <- unique(data.table(
+    eventID = ev$eventID,
+    year = as.integer(if ("year" %in% names(ev)) ev$year else substr(ev$eventDate, 1, 4)),
+    lon = as.numeric(ev$decimalLongitude), lat = as.numeric(ev$decimalLatitude),
+    locality = if ("locality" %in% names(ev)) ev$locality else NA_character_
+  ), by = "eventID")
+  ev <- ev[!is.na(year) & !is.na(lon) & !is.na(lat)]
+
+  occ <- ler(file.path(d, "DF_occ.csv"))
+  occ <- unique(occ[, .(occurrenceID,
+                        sp = scientificNameAccepted,
+                        phylum, class, order)], by = "occurrenceID")
+
+  emof <- ler(file.path(d, "DF_eMOF.csv"))
+  # eventID vem do eMOF: e a tabela que tem TODAS as medidas, inclusive as que
+  # perderam a linha de ocorrencia na exportacao (caso do XV).
+  cov <- unique(emof[tolower(measurementType) == "percentage cover",
+                     .(eventID, occurrenceID, cover = as.numeric(measurementValue))],
+                by = "occurrenceID")
+
+  x <- merge(cov, occ, by = "occurrenceID", all.x = TRUE)
+  x <- merge(x, ev, by = "eventID")
+  x[!is.na(cover) & cover > 0][, ds := d][]
+}), fill = TRUE)
+
+msg("lidos %d registros de cobertura em %d datasets", nrow(tudo), uniqueN(tudo$ds))
+
+## ---- Sitios (unificados entre datasets) --------------------------------------
+tudo[, `:=`(lon = round(lon, 5), lat = round(lat, 5))]
+sitios <- tudo[, .(
+  locality = na.omit(locality)[1],
+  datasets = paste(sort(unique(ds)), collapse = "; "),
+  n_eventos = uniqueN(eventID), ano_min = min(year), ano_max = max(year)
+), by = .(lon, lat)]
 setorder(sitios, -lat, lon)
 sitios[, site_id := sprintf("B%03d", .I)]
-sitios[, island := fifelse(lat > 0, "São Pedro e São Paulo",
-                   fifelse(lat > -4.0 & lon < -33, "Atol das Rocas",
-                   fifelse(lat > -4.2, "Fernando de Noronha", "Trindade")))]
-occ <- merge(occ, sitios[, .(lon, lat, site_id, island)], by = c("lon", "lat"))
+sitios[, region := regiao(lat)]
+tudo <- merge(tudo, sitios[, .(lon, lat, site_id)], by = c("lon", "lat"))
 
-## ---- Agregacao: media por sitio/ano/grupo -----------------------------------
-## Primeiro soma dentro de cada evento (varios taxons caem no mesmo grupo),
-## preenchendo com zero os grupos ausentes -- sem isso a media sai so onde o
-## grupo aparece e superestima a cobertura.
-grupos <- sort(unique(occ$fg))
-por_evento <- occ[, .(cover = sum(cover)), by = .(site_id, island, year, eventID, fg)]
-por_evento <- por_evento[CJ(eventID = unique(eventID), fg = grupos, unique = TRUE),
-                         on = .(eventID, fg)]
-por_evento[is.na(cover), cover := 0]
-chave <- unique(occ[, .(eventID, site_id, island, year)])
-por_evento[, c("site_id", "island", "year") := NULL]
-por_evento <- merge(por_evento, chave, by = "eventID")
+## =============================================================================
+## CAMADA 1 — CORAIS (nacional)
+## =============================================================================
+## So Scleractinia identificado a ESPECIE (nome com dois termos): e o nivel em
+## que os cinco datasets concordam. Generos e "Scleractinia" solto ficam de
+## fora porque significam coisas diferentes em cada protocolo.
+coral <- tudo[order == "Scleractinia" & !is.na(sp) & grepl(" ", sp)]
+msg("corais: %d registros, %d especies, %d sitios, %d-%d",
+    nrow(coral), uniqueN(coral$sp), uniqueN(coral$site_id),
+    min(coral$year), max(coral$year))
 
-benthos_site_year <- por_evento[, .(mean_cover = mean(cover), n_eventos = uniqueN(eventID)),
-                                by = .(site_id, island, year, functional_group = fg)]
-benthos_site_year[, proportion := 100 * mean_cover / sum(mean_cover), by = .(site_id, year)]
+# Composicao RELATIVA dentro da assembleia de coral. Somamos por sitio/ano e so
+# entao dividimos -- a media de razoes por evento daria peso igual a um
+# fotoquadrante com um coral e a outro com vinte.
+coral_sy_sp <- coral[, .(cover = sum(cover), n_eventos = uniqueN(eventID)),
+                     by = .(site_id, year, species = sp)]
+coral_sy_sp[, pct := 100 * cover / sum(cover), by = .(site_id, year)]
 
-benthos_summary <- occ[, .(n_eventos = uniqueN(eventID), n_taxons = uniqueN(sp),
+coral_sy <- coral[, .(n_species = uniqueN(sp), n_eventos = uniqueN(eventID),
+                      cover_total = sum(cover)), by = .(site_id, year)]
+
+coral_summary <- coral[, .(n_species = uniqueN(sp), n_eventos = uniqueN(eventID),
                            years_sampled = uniqueN(year),
-                           year_range = paste(min(year), max(year), sep = "–")),
-                       by = .(site_id, island)]
+                           year_range = paste(min(year), max(year), sep = "–"),
+                           datasets = paste(sort(unique(ds)), collapse = "; ")),
+                       by = site_id]
 
-benthos_taxa <- occ[!is.na(sp), .(cover = sum(cover)), by = .(site_id, island, year, sp, fg)]
-
-## ---- Conferencias ------------------------------------------------------------
-tot <- benthos_site_year[, .(s = sum(mean_cover)), by = .(site_id, year)]$s
-msg("cobertura media por sitio/ano: min %.1f  mediana %.1f  max %.1f",
-    min(tot), median(tot), max(tot))
-
-# A conferencia que importa e de CONSERVACAO: toda medida do eMOF tem que
-# chegar na agregacao. Comparar a media com 100 nao serve de trava porque dois
-# dos 2.634 eventos somam 40 e 68 na propria fonte (SPSP Enseada 2014 e 2015),
-# e num sitio-ano com poucos fotoquadrantes isso puxa a media para 93.
-cov_total_fonte <- sum(cov$cover, na.rm = TRUE)
-cov_total_final <- sum(occ$cover)
 stopifnot(
-  "cobertura se perdeu entre o eMOF e a agregacao" =
-    abs(cov_total_fonte - cov_total_final) < 1e-6,
-  "numero de eventos divergiu do event_core" = uniqueN(occ$eventID) == nrow(ev),
-  "composicao nao soma 100%" =
-    max(abs(benthos_site_year[, sum(proportion), by = .(site_id, year)]$V1 - 100)) < 1e-6,
-  # Folga larga, so para pegar perda grosseira; a trava real e a conservacao
-  # acima.
-  "cobertura media muito longe de 100%" = abs(median(tot) - 100) < 2
+  "composicao de coral nao soma 100%" =
+    max(abs(coral_sy_sp[, sum(pct), by = .(site_id, year)]$V1 - 100)) < 1e-6
+)
+
+## =============================================================================
+## CAMADA 2 — COMUNIDADE BENTONICA (por dataset, nunca somada)
+## =============================================================================
+grupo <- function(ph, cl, od, sp) {
+  fifelse(is.na(sp) | sp == "", "Substrato, turf e não identificado",
+  fifelse(ph == "Cyanobacteria", "Cianobactérias",
+  fifelse(od %in% c("Corallinales", "Hapalidiales"), "Algas calcárias",
+  fifelse(ph %in% c("Rhodophyta", "Ochrophyta", "Chlorophyta"), "Macroalgas carnosas",
+  fifelse(od == "Scleractinia", "Coral",
+  fifelse(od == "Zoantharia", "Zoantídeos",
+  fifelse(cl == "Octocorallia", "Octocorais",
+  fifelse(ph == "Porifera", "Esponjas",
+  fifelse(ph %in% c("Chordata", "Bryozoa", "Echinodermata", "Mollusca",
+                    "Annelida", "Arthropoda", "Cnidaria"), "Outros invertebrados",
+          "Outros"))))))))) 
+}
+
+com <- tudo[ds %in% COMUNIDADE]
+com[, fg := grupo(phylum, class, order, sp)]
+
+# Dentro de cada dataset a composicao e relativa ao que AQUELE dataset mede.
+# O campo `ds` viaja junto e o front-end nunca cruza datasets.
+com_sy <- com[, .(cover = sum(cover), n_eventos = uniqueN(eventID)),
+              by = .(ds, site_id, year, functional_group = fg)]
+com_sy[, pct := 100 * cover / sum(cover), by = .(ds, site_id, year)]
+
+com_summary <- com[, .(n_taxons = uniqueN(sp[!is.na(sp)]), n_eventos = uniqueN(eventID),
+                       years_sampled = uniqueN(year),
+                       year_range = paste(min(year), max(year), sep = "–")),
+                   by = .(ds, site_id)]
+
+msg("comunidade: %d datasets, %d sitios, %d linhas sitio/ano/grupo",
+    uniqueN(com$ds), uniqueN(com$site_id), nrow(com_sy))
+
+stopifnot(
+  "composicao da comunidade nao soma 100%" =
+    max(abs(com_sy[, sum(pct), by = .(ds, site_id, year)]$V1 - 100)) < 1e-6,
+  "cobertura se perdeu entre a leitura e a agregacao" =
+    abs(sum(tudo$cover) - sum(tudo[, sum(cover), by = ds]$V1)) < 1e-6
 )
 
 saveRDS(list(
-  sites   = sitios[, .(site_id, lon, lat, locality, island, n_eventos, ano_min, ano_max)],
-  site_year = benthos_site_year,
-  summary = benthos_summary,
-  taxa    = benthos_taxa,
-  meta    = list(source = "ReefSYN XV (PELD-ILOC)", quantity = "Percentage cover",
-                 note = "cobertura absoluta; substrato, turf e nao identificados num unico grupo")
+  sites         = sitios[, .(site_id, lon, lat, locality, region, datasets,
+                             n_eventos, ano_min, ano_max)],
+  coral_sy_sp   = coral_sy_sp,
+  coral_sy      = coral_sy,
+  coral_summary = coral_summary,
+  com_sy        = com_sy,
+  com_summary   = com_summary,
+  meta = list(
+    coral_note = "composição relativa dentro da assembleia de coral; válida sem o denominador",
+    com_note   = "relativa ao que cada dataset mede; NUNCA comparar entre datasets",
+    com_datasets = COMUNIDADE
+  )
 ), OUT)
 
 msg("")
 msg("gravado %s", OUT)
-msg("  %d sitios · %d ilhas · %d eventos · %d taxons · %d grupos · %d-%d",
-    nrow(sitios), uniqueN(sitios$island), uniqueN(occ$eventID), uniqueN(occ$sp),
-    length(grupos), min(occ$year), max(occ$year))
-print(benthos_site_year[, .(cobertura = round(sum(mean_cover) / uniqueN(paste(site_id, year)), 1)),
-                        by = functional_group][order(-cobertura)])
+msg("  corais     %3d sitios · %2d especies · %d regioes",
+    uniqueN(coral$site_id), uniqueN(coral$sp), uniqueN(sitios[site_id %in% coral$site_id]$region))
+msg("  comunidade %3d sitios · %d datasets", uniqueN(com$site_id), uniqueN(com$ds))
+print(sitios[, .(sitios = .N, eventos = sum(n_eventos)), by = region][order(-eventos)])

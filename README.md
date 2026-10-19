@@ -18,23 +18,43 @@ decisão, que chegam por pergunta, não por ferramenta.
 
 ### Escala nacional (ReefSYN)
 
-O Eixo 1 cobre a costa brasileira. São três fontes, tratadas como camadas
-distintas porque têm coberturas e categorias distintas — nunca são
-concatenadas numa série só:
+O Eixo 1 cobre a costa brasileira em **três camadas separadas**, porque são
+três perguntas distintas com três níveis de comparabilidade distintos:
 
-| camada | fonte | sítios | período |
-|---|---|---|---|
-| Peixes | ReefSYN, 8 datasets de transecto 40 m² | 232 | 2001–2023 |
-| Bentos (ilhas oceânicas) | ReefSYN XV (PELD-ILOC) | 12 | 2013–2019 |
-| Bentos (Noronha) | PELD-ILOC | 4 | 2021–2024 |
+| camada | fonte | sítios | período | comparável entre fontes? |
+|---|---|---|---|---|
+| **Peixes** | ReefSYN, 8 datasets de transecto 40 m² | 232 | 2001–2023 | sim — mesmo protocolo |
+| **Corais** | Scleractinia a espécie, 5 datasets | 90 | 2006–2019 | sim — vocabulário comum |
+| **Bentos** | comunidade: XIV, XV, XVI e Noronha | 103 | 2010–2024 | **não** — uma camada por dataset |
 
 Hierarquia: **Brasil → Região → Unidade de Conservação → Sítio**. 134 dos 232
 sítios de peixe caem em 24 UCs marinhas do CNUC.
 
-**A série de peixe é estratificada por região, nunca agregada.** O Rio de
-Janeiro é 44% dos censos e a única região presente de 2001 a 2005; as demais
-entram e saem. Uma linha nacional única mostraria geografia disfarçada de
-tendência, e o painel diz isso na tela.
+#### Por que três camadas, e não uma
+
+A exportação Darwin Core do ReefSYN **remove o denominador** do bentos:
+substrato, sedimento e turf saem dos arquivos *"because they do not represent
+taxonomical entities"* (`eventRemarks`). Só o XV manteve esses registros no
+eMOF, sem identidade — é o único em que a cobertura fecha em 100%.
+
+Pior: **XII e XIII não amostram a comunidade.** São levantamentos de coral,
+com 33 e 24 táxons quase todos Scleractinia. Compor "algas calcárias" entre os
+cinco daria 0% no XII e 65% no XIV — artefato de protocolo, não de recife.
+
+O que os cinco compartilham é o **coral escleractíneo a espécie**: 13 das 14
+espécies aparecem em 2+ datasets, 2 nos cinco. E a composição *relativa dentro
+da assembleia de coral* é válida mesmo sem o denominador, porque a fração
+removida é a mesma para todos os táxons do evento e some na razão.
+
+Daí: corais viram camada nacional comparável; a comunidade bentônica fica uma
+camada por dataset, nunca somada; peixes seguem comparáveis pelo protocolo.
+
+#### Estratificação obrigatória
+
+**A série de peixe é por região, nunca agregada.** O Rio de Janeiro é 44% dos
+censos e a única região presente de 2001 a 2005; as demais entram e saem. Uma
+linha nacional única mostraria geografia disfarçada de tendência, e o painel
+diz isso na tela.
 
 Geração: `build/extract_reefsyn.R` e `build/extract_reefsyn_benthos.R`, que
 rodam na máquina local (a fonte, `~/Área de trabalho/ReefSYN`, não está no

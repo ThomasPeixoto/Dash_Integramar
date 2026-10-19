@@ -48,28 +48,38 @@ export function buildNational(core) {
       location: humanize(s.location),
       zone: s.region, zone_label: s.region, region: s.region,
       ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null, uf: ucs[0]?.uf ?? null,
-      has_fish: true, has_benthos_islands: false, has_benthos: false,
+      has_fish: true, has_coral: false, has_benthos: false,
       n_censos: s.n_censos, ano_min: s.ano_min, ano_max: s.ano_max,
     });
     coords.push({ Site: s.site_id, decimalLatitude: s.lat, decimalLongitude: s.lon, dataset: 'fish' });
   }
 
+  // Um sítio bentônico pode alimentar a camada de corais, a de comunidade, ou
+  // as duas: XII e XIII só resolvem coral, XIV/XV/XVI resolvem a comunidade.
+  const comCoral = new Set((core.coral_summary ?? []).map((r) => r.site_id));
+  const comCom   = new Set((core.com_summary ?? []).map((r) => r.site_id));
+
   for (const b of core.reef_benthos_sites ?? []) {
     const ucs = ucBySite.get(b.site_id) ?? [];
+    const temCoral = comCoral.has(b.site_id);
+    const temCom   = comCom.has(b.site_id);
+    if (!temCoral && !temCom) continue;
     sites.push({
       Site: b.site_id,
       site_label: humanize(b.locality) || b.site_id,
-      location: b.island,
-      // As ilhas oceânicas do XV recebem a região pela latitude, igual aos
-      // sítios de peixe, para que o filtro por região alcance as duas camadas.
-      zone: regionOfLat(b.lat), zone_label: regionOfLat(b.lat), region: regionOfLat(b.lat),
-      island: b.island,
+      location: humanize(b.locality),
+      zone: b.region, zone_label: b.region, region: b.region,
       ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null, uf: ucs[0]?.uf ?? null,
-      has_fish: false, has_benthos_islands: true, has_benthos: false,
+      has_fish: false, has_coral: temCoral, has_benthos: temCom,
+      datasets: b.datasets,
       n_censos: b.n_eventos, ano_min: b.ano_min, ano_max: b.ano_max,
     });
-    coords.push({ Site: b.site_id, decimalLatitude: b.lat, decimalLongitude: b.lon,
-                  dataset: 'benthos_islands' });
+    // A mesma coordenada entra uma vez por camada, para que ligar e desligar
+    // "Corais" ou "Bentos" acenda e apague o ponto certo.
+    if (temCoral) coords.push({ Site: b.site_id, decimalLatitude: b.lat,
+                                decimalLongitude: b.lon, dataset: 'coral' });
+    if (temCom)   coords.push({ Site: b.site_id, decimalLatitude: b.lat,
+                                decimalLongitude: b.lon, dataset: 'benthos' });
   }
 
   // A série bentônica de Noronha (2021-2024) não vem do ReefSYN, mas é a mesma
@@ -86,9 +96,9 @@ export function buildNational(core) {
       location: 'Fernando de Noronha',
       zone: regionOfLat(c.decimalLatitude), zone_label: regionOfLat(c.decimalLatitude),
       region: regionOfLat(c.decimalLatitude),
-      island: 'Fernando de Noronha',
+      island: 'Fernando de Noronha', benthos_ds: 'Noronha',
       ucs: [], uc_name: null, uc_cat: null, uf: null,
-      has_fish: false, has_benthos_islands: false, has_benthos: true,
+      has_fish: false, has_coral: false, has_benthos: true,
       noronha_site: s.Site,
     });
     coords.push({ Site: `N_${s.Site}`, decimalLatitude: c.decimalLatitude,

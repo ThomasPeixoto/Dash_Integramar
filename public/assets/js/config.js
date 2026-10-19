@@ -11,9 +11,22 @@ export const DATASETS = ['benthos', 'fish', 'fishers', 'pollution', 'productivit
 // Camadas da escala nacional. São fontes distintas, com coberturas e
 // categorias distintas, e por isso nunca viram uma série só:
 //   fish             ReefSYN nacional        232 sítios   2001-2023
-//   benthos_islands  ReefSYN XV (PELD-ILOC)   12 sítios   2013-2019
+//   coral            Scleractinia a espécie    90 sítios   2006-2019
 //   benthos          PELD-ILOC Noronha         4 sítios   2021-2024
-export const NATIONAL_DATASETS = ['fish', 'benthos_islands', 'benthos'];
+// Três camadas separadas, porque são três perguntas distintas e três níveis
+// de comparabilidade distintos:
+//   fish     ReefSYN nacional          232 sítios  2001-2023
+//   coral    corais a espécie, 5 ds     90 sítios  2006-2019  comparável
+//   benthos  comunidade, por dataset   103 sítios  2010-2024  NUNCA somada
+export const NATIONAL_DATASETS = ['fish', 'coral', 'benthos'];
+
+/** Datasets de comunidade bentônica. Cada um é sua própria camada. */
+export const BENTHOS_SOURCES = [
+  { v: 'XIV',     pt: 'Costa (XIV)',          en: 'Coast (XIV)' },
+  { v: 'XV',      pt: 'Ilhas oceânicas (XV)', en: 'Oceanic islands (XV)' },
+  { v: 'XVI',     pt: 'Rio Grande do Norte (XVI)', en: 'Rio Grande do Norte (XVI)' },
+  { v: 'Noronha', pt: 'Noronha (2021-2024)',  en: 'Noronha (2021-2024)' },
+];
 
 // ---------------------------------------------------------------------------
 // Eixos tematicos
@@ -36,10 +49,10 @@ export const EIXOS = [
     title:  { pt: 'Biodiversidade, funcionamento e resiliência dos recifes',
               en: 'Reef biodiversity, functioning and resilience' },
     lede: {
-      pt: 'Censos visuais de peixes recifais ao longo de toda a costa brasileira e fotoquadrados da comunidade bentônica nas ilhas oceânicas e em Fernando de Noronha, acompanhando como a composição e a abundância dessas comunidades se transformam ao longo do tempo.',
-      en: 'Underwater visual censuses of reef fish along the entire Brazilian coast and photoquadrats of the benthic community in the oceanic islands and Fernando de Noronha, tracking how composition and abundance change over time.',
+      pt: 'Três camadas ao longo da costa brasileira: censos visuais de peixes recifais, a assembleia de corais escleractíneos identificada a espécie, e a comunidade bentônica em fotoquadrados. São metodologias distintas, com coberturas distintas, e o painel as mantém separadas.',
+      en: 'Three layers along the Brazilian coast: underwater visual censuses of reef fish, the scleractinian coral assemblage identified to species, and the benthic community in photoquadrats. These are distinct methods with distinct coverage, and the panel keeps them apart.',
     },
-    datasets: ['fish', 'benthos_islands', 'benthos'],
+    datasets: NATIONAL_DATASETS,
   },
   {
     id: 'eixo2', n: 2, color: '#982263',
@@ -108,14 +121,12 @@ export const CREDITS = {
     email: 'tainalgaspar@gmail.com',
     link: null,
   },
-  // O XV (bentos das ilhas oceânicas) tem o mesmo curador do bentos de
-  // Noronha — é o que diz o eventRemarks do próprio dataset.
-  benthos_islands: {
-    name: 'Dr. Cesar M. M. Cordeiro',
-    inst: { pt: 'Universidade Estadual do Norte Fluminense', en: 'Universidade Estadual do Norte Fluminense' },
-    photo: 'cesar-m-m-cordeiro.webp',
-    email: 'cammcordeiro@gmail.com',
-    link: 'https://lattes.cnpq.br/6383192984652602',
+  coral: {
+    name: 'Dr. Guilherme O. Longo',
+    inst: { pt: 'Universidade Federal do Rio Grande do Norte', en: 'Universidade Federal do Rio Grande do Norte' },
+    photo: 'guilherme-o-longo.webp',
+    email: 'guilhermeolongo@gmail.com',
+    link: 'http://lattes.cnpq.br/3947302863354812',
   },
   pollution: {
     name: 'Drª. Cybelle M. Longhini',
@@ -139,7 +150,7 @@ export const DS_COLOR = {
   fishers:      '#FDA749',
   pollution:    '#982263',
   productivity: '#F76043',
-  benthos_islands: '#7FC4CB',
+  coral: '#F76043',
 };
 
 // Rampas sequenciais do mapa. Cada uma parte do azul claro institucional,
@@ -266,7 +277,7 @@ const STRINGS = {
     mode_datasets: 'Conjuntos de dados', mode_benthos: 'Cobertura bentônica',
     mode_fish: 'Peixes recifais', mode_pollution: 'Poluição',
     mode_productivity: 'Produtividade',
-    ds_benthos: 'Bentos (Noronha)', ds_benthos_islands: 'Bentos (ilhas oceânicas)',
+    ds_benthos: 'Bentos', ds_coral: 'Corais',
     ds_fish: 'Peixes', ds_fishers: 'Pescadores',
     ds_pollution: 'Poluição', ds_productivity: 'Produtividade',
     m_sites: 'Sítios', m_datasets: 'Conjuntos', m_records: 'Registros',
@@ -327,7 +338,7 @@ const STRINGS = {
     mode_datasets: 'Datasets', mode_benthos: 'Benthic cover',
     mode_fish: 'Reef fish', mode_pollution: 'Pollution',
     mode_productivity: 'Productivity',
-    ds_benthos: 'Benthos (Noronha)', ds_benthos_islands: 'Benthos (oceanic islands)',
+    ds_benthos: 'Benthos', ds_coral: 'Corals',
     ds_fish: 'Fish', ds_fishers: 'Fishers',
     ds_pollution: 'Pollution', ds_productivity: 'Productivity',
     m_sites: 'Sites', m_datasets: 'Datasets', m_records: 'Records',

@@ -16,11 +16,11 @@ import {
   barOption, groupedBarOption, zoneLineOption, CAT,
 } from './charts.js';
 import {
-  readE1Map, readE1Time, readE1Nacional, readE2, readE3Rodolitos, readE3Pesca,
+  readE1Map, readE1Time, readE1Nacional, readE1Corais, readE1Comunidade, readE2, readE3Rodolitos, readE3Pesca,
   readE4Fish, readE4Pollution, readE4Absent, zoneFish, zonePollution,
 } from './narrative.js';
 import {
-  DATASETS, NATIONAL_DATASETS, DS_COLOR, RAMP, MODE_VARS, SPATIAL_LAYERS, EIXOS, eixoById,
+  DATASETS, NATIONAL_DATASETS, BENTHOS_SOURCES, DS_COLOR, RAMP, MODE_VARS, SPATIAL_LAYERS, EIXOS, eixoById,
   t, setLang, getLang, optLabel, varLabel, CREDITS,
 } from './config.js';
 
@@ -33,12 +33,14 @@ let msgNacional = '';
 
 // Mapa e séries só existem em alguns eixos; esta tabela diz o que cada um
 // reivindica, e é o que o roteador consulta ao trocar de página.
+// `datasets` vem de EIXOS, nunca repetido aqui: as duas listas já divergiram
+// uma vez (o eixo declarava um conjunto que havia sido renomeado, e a ficha do
+// responsável parou de renderizar sem erro nenhum no console).
 const EIXO_MAP = {
-  eixo1: { slot: 'slot-eixo1', scope: 'national',
-           modes: ['datasets', 'fish'], datasets: NATIONAL_DATASETS },
-  eixo2: { slot: 'slot-eixo2', scope: 'noronha',
-           modes: ['pollution'], datasets: ['pollution'] },
+  eixo1: { slot: 'slot-eixo1', scope: 'national', modes: ['datasets', 'fish'] },
+  eixo2: { slot: 'slot-eixo2', scope: 'noronha',  modes: ['pollution'] },
 };
+for (const [id, cfg] of Object.entries(EIXO_MAP)) cfg.datasets = eixoById(id).datasets;
 
 // Estado de mapa lembrado por eixo, para que voltar a um eixo não perca o
 // modo e a variável que estavam escolhidos lá.
@@ -75,6 +77,7 @@ const regionLabel = (r) => REGION_LABEL[r]?.[getLang()] ?? r;
     activeDatasets: ['benthos', 'fish'],
     selectedSite: null,
     tDataset: core.national ? 'fish' : 'benthos', tType: 'lines', tTaxa: [],
+    tBenthosDs: 'XV',
     e2Param: 'Salinity', e4Param: 'DIN',
   });
 
@@ -91,7 +94,7 @@ const regionLabel = (r) => REGION_LABEL[r]?.[getLang()] ?? r;
     renderReadings();
   });
   store.on('selectedSite', renderProfile);
-  store.on(['tDataset', 'tType'], renderTemporal);
+  store.on(['tDataset', 'tType', 'tBenthosDs'], renderTemporal);
 
   showEixo('eixo1');
   $('#boot').setAttribute('data-done', '');
@@ -478,9 +481,7 @@ const setHTML = (sel, html) => { const el = $(sel); if (el) el.innerHTML = html;
 
 function buildTemporalControls() {
   const fontes = core.national
-    ? [{ v: 'fish',            label: t('ds_fish'),            color: DS_COLOR.fish },
-       { v: 'benthos_islands', label: t('ds_benthos_islands'), color: DS_COLOR.benthos_islands },
-       { v: 'benthos',         label: t('ds_benthos'),         color: DS_COLOR.benthos }]
+    ? NATIONAL_DATASETS.map((v) => ({ v, label: t(`ds_${v}`), color: DS_COLOR[v] }))
     : [{ v: 'benthos', label: t('ds_benthos'), color: DS_COLOR.benthos },
        { v: 'fish',    label: t('ds_fish'),    color: DS_COLOR.fish }];
   makeChips($('#t-dataset'), fontes,
@@ -490,6 +491,7 @@ function buildTemporalControls() {
       // sobrepõem entre bentos e peixes.
       store.set({ tDataset: v, tTaxa: [] });
       $$('#t-dataset .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === v));
+      syncBenthosSources();
     });
 
   makeChips($('#t-type'),
@@ -499,6 +501,27 @@ function buildTemporalControls() {
     (v) => {
       store.set('tType', v);
       $$('#t-type .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === v));
+    });
+}
+
+/**
+ * A camada de comunidade bentônica é uma camada POR DATASET. XIV, XV, XVI e a
+ * série de Noronha medem universos diferentes e nunca são somados, então a
+ * escolha do dataset é explícita em vez de implícita numa média.
+ */
+function syncBenthosSources() {
+  const el = $('#t-benthos-ds');
+  if (!el) return;
+  const mostrar = store.get('tDataset') === 'benthos' && core.national;
+  el.hidden = !mostrar;
+  if (!mostrar) return;
+  makeChips(el,
+    BENTHOS_SOURCES.map((o) => ({ v: o.v, label: optLabel(o), color: DS_COLOR.benthos })),
+    (v) => store.get('tBenthosDs') === v,
+    (v) => {
+      store.set('tBenthosDs', v);
+      $$('#t-benthos-ds .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.v === v));
+      renderTemporal();
     });
 }
 
@@ -530,13 +553,15 @@ async function renderTemporal() {
   // geográfica do "Brasil" muda a cada ano — o Rio é 44% dos censos e a única
   // região presente de 2001 a 2005 — então uma linha nacional única mostraria
   // geografia disfarçada de tendência.
-  if (ds === 'fish' && core.national) return renderTemporalNacional();
+  if (core.national) {
+    if (ds === 'fish')  return renderTemporalNacional();
+    if (ds === 'coral') return renderTemporalCorais();
+    if (ds === 'benthos' && store.get('tBenthosDs') !== 'Noronha') return renderTemporalComunidade();
+  }
 
-  const nomes = ds === 'benthos_islands'
-    ? (g) => g
-    : (ds === 'benthos' ? (g) => varLabel('benthos', g) : (g) => g);
+  const nomes = ds === 'benthos' ? (g) => varLabel('benthos', g) : (g) => g;
   const unit = ds === 'fish' ? '' : '%';
-  const rows = ds === 'benthos_islands' ? seriesIlhas() : groupSeries(core, ds, []);
+  const rows = groupSeries(core, ds, []);
 
   setHTML('#read-e1-time', readE1Time(rows, ds, nomes));
   const sub = ds === 'benthos_islands'
@@ -558,12 +583,50 @@ async function renderTemporal() {
   await renderTaxonCard(ds, unit);
 }
 
-/** Bentos das ilhas oceânicas, já agregado por sítio/ano/grupo no R. */
-function seriesIlhas() {
-  const sitesFiltro = siteFilter();
-  return (core.reef_benthos_year ?? [])
-    .filter((r) => !sitesFiltro.length || sitesFiltro.includes(`B${r.site_id.slice(1)}`))
-    .map((r) => ({ Site: r.site_id, Year: r.year, group: r.functional_group, value: r.mean_cover }));
+/** Corais: composição relativa dentro da assembleia, por espécie. */
+function renderTemporalCorais() {
+  const alvo = siteFilter();
+  const rows = (core.coral_sy_sp ?? [])
+    .filter((r) => !alvo.length || alvo.includes(r.site_id))
+    .map((r) => ({ Site: r.site_id, Year: r.year, group: r.species,
+                   value: r.pct, n_events: r.n_eventos }));
+
+  setHTML('#read-e1-time', readE1Corais(core, rows, siteFilter()));
+  const sub = getLang() === 'pt'
+    ? 'Participação de cada espécie na assembleia de coral (%)'
+    : 'Share of each species within the coral assemblage (%)';
+  $('#trend-sub').textContent = sub;
+  $('#heat-sub').textContent = sub;
+  showTaxonCard(false);
+
+  if (!rows.length) { chart('chart-trend')?.clear(); chart('chart-heat')?.clear(); return; }
+  chart('chart-trend')?.setOption(
+    trendOption(rows, { type: store.get('tType'), unit: '%', nameOf: (g) => g }), true);
+  chart('chart-heat')?.setOption(heatmapOption(rows, RAMP.productivity, '%'), true);
+}
+
+/** Comunidade bentônica de UM dataset, por grupo funcional. */
+function renderTemporalComunidade() {
+  const dsAtivo = store.get('tBenthosDs');
+  const alvo = siteFilter();
+  const rows = (core.com_sy ?? [])
+    .filter((r) => r.ds === dsAtivo)
+    .filter((r) => !alvo.length || alvo.includes(r.site_id))
+    .map((r) => ({ Site: r.site_id, Year: r.year, group: r.functional_group,
+                   value: r.pct, n_events: r.n_eventos }));
+
+  setHTML('#read-e1-time', readE1Comunidade(core, rows, dsAtivo));
+  const sub = getLang() === 'pt'
+    ? `Composição relativa ao que o dataset ${dsAtivo} mede (%) — não comparar com outro dataset`
+    : `Composition relative to what dataset ${dsAtivo} measures (%) — do not compare across datasets`;
+  $('#trend-sub').textContent = sub;
+  $('#heat-sub').textContent = sub;
+  showTaxonCard(false);
+
+  if (!rows.length) { chart('chart-trend')?.clear(); chart('chart-heat')?.clear(); return; }
+  chart('chart-trend')?.setOption(
+    trendOption(rows, { type: store.get('tType'), unit: '%', nameOf: (g) => g }), true);
+  chart('chart-heat')?.setOption(heatmapOption(rows, RAMP.benthos, '%'), true);
 }
 
 /** Peixe nacional: uma série por região, em indivíduos por censo. */
