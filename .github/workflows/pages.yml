@@ -22,8 +22,12 @@ permissions:
 # importa. Com `false` (o padrão do workflow inicial do GitHub, pensado para
 # não interromper um deploy de produção em curso) uma execução presa em
 # `waiting` segurava todas as seguintes na fila indefinidamente.
+# O grupo foi renomeado de `pages` para `pages-deploy` em 19/10/2026: uma
+# execução ficou presa em `waiting` no environment github-pages (sem
+# temporizador nem revisor configurado — travamento do lado do GitHub) e
+# segurava todas as seguintes no mesmo grupo. Renomear desvincula as novas.
 concurrency:
-  group: pages
+  group: pages-deploy
   cancel-in-progress: true
 
 jobs:
