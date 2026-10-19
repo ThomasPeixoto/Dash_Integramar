@@ -238,6 +238,53 @@ benthos_comp_fine <- benthos_year_fine %>%
             total_cover = mean_cover,
             proportion  = mean_cover)
 
+# ---------------------------------------------------------------------------
+# Eixo 3 — agregados das entrevistas com pescadores
+# ---------------------------------------------------------------------------
+#
+# A tabela linha-a-linha traz idade, genero, renda e composicao domiciliar de
+# pessoas identificaveis, e por isso NAO vai para o site. O que vai sao
+# agregados sobre as 63 entrevistas: composicao da captura, consumo por tipo
+# de alimento e esforco. Nenhum atributo pessoal entra aqui.
+fsh <- d$fishers
+
+consumo <- local({
+  tipos <- c("fish", "mollusk", "crustaceans", "cephalopods", "beef",
+             "pork", "chicken", "processed_meat", "sheep", "game")
+  num <- function(x) suppressWarnings(as.numeric(x))
+  do.call(rbind, lapply(tipos, function(tp) {
+    kg   <- num(fsh[[paste0(tp, "_consumption_kg")]])
+    dias <- num(fsh[[paste0("freq_", tp, "_consumption_days/week")]])
+    # `game` e inteiramente ausente; mean() devolveria NaN, que vira null no
+    # JSON e o front-end le como "sem dado" -- distinto de zero.
+    data.frame(
+      food      = tp,
+      kg_week   = if (all(is.na(kg)))   NA_real_ else mean(kg, na.rm = TRUE),
+      days_week = if (all(is.na(dias))) NA_real_ else mean(dias, na.rm = TRUE),
+      n         = sum(!is.na(kg)),
+      stringsAsFactors = FALSE
+    )
+  }))
+})
+
+captura <- fsh %>%
+  filter(!is.na(common_name)) %>%
+  count(common_name, name = "n_fishers") %>%
+  arrange(desc(n_fishers))
+
+fishers_summary <- data.frame(
+  n_interviews = nrow(fsh),
+  catch_mean   = mean(fsh$catch_kg, na.rm = TRUE),
+  catch_median = median(fsh$catch_kg, na.rm = TRUE),
+  catch_max    = max(fsh$catch_kg, na.rm = TRUE),
+  n_gear_line  = sum(grepl("hook_and_line", fsh$gear)),
+  Site         = unique(fsh$Site)[1],
+  stringsAsFactors = FALSE
+)
+
+msg("pescadores: %d entrevistas agregadas (%d tipos de alimento, %d especies)",
+    nrow(fsh), nrow(consumo), nrow(captura))
+
 core <- list(
   meta = list(
     generated = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
@@ -259,6 +306,9 @@ core <- list(
   fish_top         = encode_table(prep(d$fish_top_species)),
 
   productivity     = encode_table(prep(d$productivity)),
+  fishers_consumption = encode_table(consumo),
+  fishers_catch       = encode_table(captura),
+  fishers_summary     = encode_table(fishers_summary),
   pollution        = encode_table(prep(d$pollution)),
   pollution_nd     = encode_table(as.data.frame(d$pollution_nd))
 )

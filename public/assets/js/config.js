@@ -8,6 +8,70 @@
 
 export const DATASETS = ['benthos', 'fish', 'fishers', 'pollution', 'productivity'];
 
+// ---------------------------------------------------------------------------
+// Eixos tematicos
+// ---------------------------------------------------------------------------
+//
+// Espelham a estrutura de https://integramar.org/o-projeto/. O padrao que o
+// site institucional usa -- cada linha de pesquisa apresentada como uma
+// PERGUNTA -- e o que organiza este painel: a navegacao e por pergunta, nao
+// por ferramenta.
+//
+// Os nomes dos coordenadores estao no site mas NAO aqui: a atribuicao de
+// autoria dos conjuntos ainda esta pendente e sera definida depois.
+export const EIXOS = [
+  {
+    id: 'eixo1', n: 1, color: '#3C9BA5',
+    short:  { pt: 'Biodiversidade',  en: 'Biodiversity' },
+    title:  { pt: 'Biodiversidade, funcionamento e resiliência dos recifes',
+              en: 'Reef biodiversity, functioning and resilience' },
+    accent: { pt: 'resiliência',     en: 'resilience' },
+    lede: {
+      pt: 'Censos visuais de peixes recifais e fotoquadrados da comunidade bentônica em Fernando de Noronha, acompanhando como a composição e a abundância dessas comunidades se transformam ao longo do tempo.',
+      en: 'Underwater visual censuses of reef fish and photoquadrats of the benthic community in Fernando de Noronha, tracking how composition and abundance change over time.',
+    },
+    datasets: ['benthos', 'fish'],
+  },
+  {
+    id: 'eixo2', n: 2, color: '#982263',
+    short:  { pt: 'Impactos',  en: 'Impacts' },
+    title:  { pt: 'Impactos locais, globais e sinérgicos',
+              en: 'Local, global and synergistic impacts' },
+    accent: { pt: 'sinérgicos', en: 'synergistic' },
+    lede: {
+      pt: 'Amostras de água e sedimento dentro e fora de unidades de conservação, avaliando nutrientes, metais, hidrocarbonetos e indicadores de contaminação por esgoto.',
+      en: 'Seawater and sediment samples inside and outside protected areas, assessing nutrients, metals, hydrocarbons and sewage contamination indicators.',
+    },
+    datasets: ['pollution'],
+  },
+  {
+    id: 'eixo3', n: 3, color: '#F76043',
+    short:  { pt: 'Serviços',  en: 'Services' },
+    title:  { pt: 'Serviços ecossistêmicos',
+              en: 'Ecosystem services' },
+    accent: { pt: 'ecossistêmicos', en: 'services' },
+    lede: {
+      pt: 'Como a biodiversidade marinha contribui para o bem-estar da sociedade — do ciclo do carbono nos bancos de rodolitos à alimentação das comunidades pesqueiras.',
+      en: 'How marine biodiversity supports human well-being — from the carbon cycle in rhodolith beds to the diet of fishing communities.',
+    },
+    datasets: ['productivity', 'fishers'],
+  },
+  {
+    id: 'eixo4', n: 4, color: '#353F7C',
+    short:  { pt: 'Gestão',  en: 'Management' },
+    title:  { pt: 'Subsídios à gestão e ao manejo',
+              en: 'Evidence for management' },
+    accent: { pt: 'gestão', en: 'management' },
+    lede: {
+      pt: 'Fernando de Noronha é dividida entre duas categorias de proteção: o Parque Nacional Marinho, de proteção integral, e a Área de Proteção Ambiental, de uso sustentável. Esta seção compara o que os dados mostram de um lado e de outro.',
+      en: 'Fernando de Noronha is split between two protection categories: the Marine National Park, fully protected, and the Environmental Protection Area, of sustainable use. This section compares what the data show on each side.',
+    },
+    datasets: ['fish', 'pollution'],
+  },
+];
+
+export const eixoById = (id) => EIXOS.find((e) => e.id === id);
+
 export const DS_COLOR = {
   benthos:      '#3C9BA5',
   fish:         '#353F7C',
@@ -101,6 +165,26 @@ const STRINGS = {
     tab_stats: 'Composição', tab_data: 'Dados',
     brand_sub: 'Fernando de Noronha',
     panel_filters: 'Recorte e camadas',
+    q_e1_map: 'Onde a rede monitora, e o que cada sítio tem?',
+    q_e1_time: 'Como as comunidades mudam ao longo do tempo?',
+    q_e2_map: 'Onde estão as áreas mais vulneráveis à poluição?',
+    q_e2_rank: 'Quais sítios concentram os maiores valores?',
+    q_e3_rod: 'Qual é o papel dos bancos de rodolitos no ciclo do carbono?',
+    q_e3_pesca: 'Que peixes comemos, e quanto o pescado pesa na alimentação?',
+    q_e4_fish: 'A proteção integral se reflete nas comunidades de peixes?',
+    q_e4_pol: 'A contaminação difere entre o parque e a área de uso sustentável?',
+    zone_parnamar: 'Parque Nacional Marinho',
+    zone_apa: 'Área de Proteção Ambiental',
+    chart_rod: 'Fluxos metabólicos por câmara',
+    chart_consumo: 'Consumo semanal por tipo de alimento',
+    chart_captura: 'Espécies citadas na captura',
+    chart_rank: 'Valor médio por sítio',
+    food_fish: 'Pescado', food_mollusk: 'Moluscos', food_crustaceans: 'Crustáceos',
+    food_cephalopods: 'Cefalópodes', food_beef: 'Carne bovina', food_pork: 'Suína',
+    food_chicken: 'Frango', food_processed_meat: 'Processados',
+    food_sheep: 'Ovina', food_game: 'Caça',
+    kg_week: 'kg por semana', days_week: 'dias por semana',
+    interviews: 'entrevistas', chambers: 'câmaras',
     temporal_h2_a: 'Como as comunidades',
     temporal_h2_b: 'mudam no tempo',
     temporal_lede: 'Cobertura bentônica e abundância de peixes recifais por ano, agregadas entre os sítios selecionados. A faixa sombreada é o erro padrão entre sítios.',
@@ -137,6 +221,26 @@ const STRINGS = {
     tab_stats: 'Composition', tab_data: 'Data',
     brand_sub: 'Fernando de Noronha',
     panel_filters: 'Scope and layers',
+    q_e1_map: 'Where does the network monitor, and what does each site hold?',
+    q_e1_time: 'How do communities change over time?',
+    q_e2_map: 'Where are the areas most vulnerable to pollution?',
+    q_e2_rank: 'Which sites concentrate the highest values?',
+    q_e3_rod: 'What is the role of rhodolith beds in the carbon cycle?',
+    q_e3_pesca: 'Which fish are eaten, and how much does seafood weigh in the diet?',
+    q_e4_fish: 'Is full protection reflected in the fish communities?',
+    q_e4_pol: 'Does contamination differ between the park and the sustainable-use area?',
+    zone_parnamar: 'Marine National Park',
+    zone_apa: 'Environmental Protection Area',
+    chart_rod: 'Metabolic fluxes per chamber',
+    chart_consumo: 'Weekly consumption by food type',
+    chart_captura: 'Species named in the catch',
+    chart_rank: 'Mean value per site',
+    food_fish: 'Seafood', food_mollusk: 'Molluscs', food_crustaceans: 'Crustaceans',
+    food_cephalopods: 'Cephalopods', food_beef: 'Beef', food_pork: 'Pork',
+    food_chicken: 'Chicken', food_processed_meat: 'Processed',
+    food_sheep: 'Lamb', food_game: 'Game',
+    kg_week: 'kg per week', days_week: 'days per week',
+    interviews: 'interviews', chambers: 'chambers',
     temporal_h2_a: 'How communities',
     temporal_h2_b: 'change over time',
     temporal_lede: 'Benthic cover and reef fish abundance per year, pooled across the selected sites. The shaded band is the standard error among sites.',

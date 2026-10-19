@@ -340,4 +340,107 @@ export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Gráficos dos eixos 2, 3 e 4
+// ---------------------------------------------------------------------------
+
+/** Barras simples. `horizontal` quando os rótulos são nomes longos. */
+export function barOption({ categories, values, color = '#353F7C', unit = '',
+                            horizontal = false, decimals = 1 } = {}) {
+  const cat = {
+    type: 'category', data: categories,
+    axisLine: { lineStyle: { color: 'rgba(53,63,124,.18)' } },
+    axisTick: { show: false },
+    axisLabel: { color: '#5a6a8a', fontSize: 11.5 },
+  };
+  const val = {
+    type: 'value',
+    axisLine: { show: false }, axisTick: { show: false },
+    splitLine: { lineStyle: { color: 'rgba(53,63,124,.08)' } },
+    axisLabel: { color: '#5a6a8a', fontSize: 11.5, formatter: (v) => `${v}${unit}` },
+  };
+  return {
+    ...BASE(),
+    legend: { show: false },
+    grid: horizontal
+      ? { left: 8, right: 34, top: 14, bottom: 14, containLabel: true }
+      : { left: 8, right: 14, top: 18, bottom: 14, containLabel: true },
+    tooltip: {
+      ...BASE().tooltip,
+      trigger: 'item',
+      formatter: (p) => `${p.name}<br><b>${fmt(p.value, decimals)}${unit}</b>`,
+    },
+    xAxis: horizontal ? val : cat,
+    yAxis: horizontal ? { ...cat, data: categories } : val,
+    series: [{
+      type: 'bar',
+      data: values,
+      itemStyle: { color, borderRadius: horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0] },
+      barMaxWidth: 26,
+      emphasis: { itemStyle: { opacity: 0.82 } },
+    }],
+  };
+}
+
+/** Barras agrupadas: uma série por grupo comparado. */
+export function groupedBarOption({ categories, series, unit = '', decimals = 1 } = {}) {
+  return {
+    ...BASE(),
+    grid: { left: 8, right: 14, top: 44, bottom: 14, containLabel: true },
+    tooltip: {
+      ...BASE().tooltip,
+      formatter: (ps) => `<div style="font-weight:700;margin-bottom:5px">${ps[0].axisValue}</div>` +
+        ps.map((p) => `<div style="display:flex;gap:14px;justify-content:space-between">
+            <span>${p.marker} ${p.seriesName}</span>
+            <b style="font-variant-numeric:tabular-nums">${fmt(p.value, decimals)}${unit}</b></div>`).join(''),
+    },
+    xAxis: {
+      type: 'category', data: categories,
+      axisLine: { lineStyle: { color: 'rgba(53,63,124,.18)' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#5a6a8a', fontSize: 11.5 },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false }, axisTick: { show: false },
+      splitLine: { lineStyle: { color: 'rgba(53,63,124,.08)' } },
+      axisLabel: { color: '#5a6a8a', fontSize: 11.5, formatter: (v) => `${v}${unit}` },
+    },
+    series: series.map((sr) => ({
+      name: sr.name, type: 'bar', data: sr.data,
+      itemStyle: { color: sr.color, borderRadius: [4, 4, 0, 0] },
+      barMaxWidth: 30,
+    })),
+  };
+}
+
+/** Linhas por zona de proteção, ao longo dos anos. */
+export function zoneLineOption({ years, series, unit = '' } = {}) {
+  return {
+    ...BASE(),
+    grid: { left: 8, right: 16, top: 44, bottom: 14, containLabel: true },
+    xAxis: { ...BASE().xAxis, data: years },
+    yAxis: {
+      ...BASE().yAxis,
+      axisLabel: { ...BASE().yAxis.axisLabel, formatter: (v) => `${v}${unit}` },
+    },
+    tooltip: {
+      ...BASE().tooltip,
+      formatter: (ps) => `<div style="font-weight:700;margin-bottom:5px">${ps[0].axisValue}</div>` +
+        ps.filter((p) => p.data !== '-')
+          .map((p) => `<div style="display:flex;gap:14px;justify-content:space-between">
+              <span>${p.marker} ${p.seriesName}</span>
+              <b style="font-variant-numeric:tabular-nums">${fmt(p.data, 0)}${unit}</b></div>`).join(''),
+    },
+    series: series.map((sr) => ({
+      name: sr.name, type: 'line', smooth: 0.25,
+      symbol: 'circle', symbolSize: 7,
+      itemStyle: { color: sr.color, borderColor: '#fff', borderWidth: 1.5 },
+      lineStyle: { color: sr.color, width: 2.5 },
+      connectNulls: false,
+      data: sr.data,
+    })),
+  };
+}
+
 export { colorFor, CAT };

@@ -269,12 +269,24 @@ const tipValue = (s, mode, varName, v, unit) => {
 // ---------------------------------------------------------------------------
 
 /**
- * A legenda e escrita num slot do painel de filtros, nao num L.control sobre o
- * mapa: no canto inferior direito ela ficava embaixo do painel de perfil, e no
- * esquerdo embaixo do painel de filtros.
+ * A legenda e escrita num slot da faixa de controles, nao num L.control sobre
+ * o mapa: sobre o mapa ela ficava embaixo do painel de perfil.
+ *
+ * A faixa e reconstruida a cada troca de eixo, entao o slot some e volta. Por
+ * isso guardamos o ultimo conteudo: quem reconstroi a faixa chama
+ * setLegendSlot e a legenda reaparece sem precisar redesenhar o mapa inteiro.
  */
+let legendSel = '#legend';
+let legendHTML = '';
+
+export function setLegendSlot(sel) {
+  legendSel = sel;
+  setLegend(legendHTML);
+}
+
 function setLegend(html) {
-  const el = document.getElementById('legend');
+  legendHTML = html;
+  const el = document.querySelector(legendSel);
   if (el) el.innerHTML = html;
 }
 
@@ -297,13 +309,28 @@ function addLegendContinuous(label, [lo, hi], ramp, unit) {
 // API
 // ---------------------------------------------------------------------------
 
-/** Enquadra o arquipelago a partir das coordenadas reais, nao de um zoom fixo. */
+/**
+ * Enquadra a partir das coordenadas reais, nao de um zoom fixo. Sem filtro
+ * usa os conjuntos ativos: cada eixo cobre um subconjunto dos sitios, e
+ * enquadrar os 30 pontos sempre deixaria sobra em volta nos eixos menores.
+ */
 export function fitToData() {
-  const pts = core.site_coords.map((c) => [c.decimalLatitude, c.decimalLongitude]);
-  if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [90, 90], maxZoom: 14 });
+  const ativos = store.get('activeDatasets');
+  const pts = core.site_coords
+    .filter((c) => ativos.includes(c.dataset))
+    .map((c) => [c.decimalLatitude, c.decimalLongitude]);
+  const base = pts.length ? pts : core.site_coords.map((c) => [c.decimalLatitude, c.decimalLongitude]);
+  if (base.length) map.fitBounds(L.latLngBounds(base), { padding: [60, 60], maxZoom: 14 });
 }
 
 export function resizeMap() { map?.invalidateSize(); }
+
+/**
+ * Redesenho forcado. Necessario quando o container muda de lugar (o mapa
+ * migra entre os slots dos eixos) ou quando o idioma muda: nesses casos
+ * nenhuma chave do estado muda, entao as assinaturas do store nao disparam.
+ */
+export function redrawMap() { if (map) render(); }
 
 export function flyToSite(code) {
   const c = core.site_coords.find((x) => x.Site === code);

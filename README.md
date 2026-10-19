@@ -4,7 +4,32 @@ Versão em HTML/CSS/JS do painel de monitoramento de Fernando de Noronha.
 Projeto **paralelo** ao `../dashboard` (R Shiny), que continua intacto e é a
 fonte dos dados.
 
-Nesta versão: **mapa interativo** e **dinâmicas temporais**.
+A navegação é pelos **quatro eixos temáticos** da Rede IntegraMAR, espelhando
+<https://integramar.org/o-projeto/>. Mapa e séries são componentes dentro dos
+eixos, não abas irmãs: o público-alvo são gestores de UC e tomadores de
+decisão, que chegam por pergunta, não por ferramenta.
+
+| eixo | conjunto | linha de pesquisa no site |
+|---|---|---|
+| 1 Biodiversidade | bentos, peixes | Dinâmica temporal de comunidades |
+| 2 Impactos | poluição | Poluição Química e Plástica |
+| 3 Serviços | produtividade, pescadores | Rodolitos e Carbono Azul · Pesca e Nutrição |
+| 4 Gestão | peixes, poluição | Efetividade das ações de conservação |
+
+### Leitura automática
+
+Acima de cada figura, uma ou duas frases calculadas da seleção atual dizem em
+português o que ela mostra (`assets/js/narrative.js`). Não é texto fixo: muda
+com o recorte, o modo e a variável. Quando o esforço amostral explica parte do
+contraste, a frase diz isso na mesma frase — não em nota de rodapé.
+
+### O que o Eixo 4 não compara, e por quê
+
+A comparação entre o Parque Nacional Marinho e a Área de Proteção Ambiental só
+é sustentável para **peixes** (4 × 5 sítios, mesmos anos) e **poluição**
+(18 × 26 amostras, mesmas campanhas). O bentos tem **um** sítio na APA contra
+três no parque; comparar um com três não é comparar zonas. O painel diz isso
+na tela em vez de omitir.
 
 ---
 
@@ -145,7 +170,9 @@ Os tokens em `assets/css/tokens.css` vêm das custom properties do tema de
 ## Pendente
 
 - Aba de dados / Darwin Core (porte de `R/mod_explorador.R`)
-- Composição (porte de `R/mod_estatisticas.R`)
+- Separar coral branqueado de coral vivo: 48% das linhas de "Hard coral" são
+  colônias branqueadas, e hoje a cobertura de coral vivo está inflada
+- Separar algas calcárias incrustantes das macroalgas carnosas
 - `turf` é 1.695 de 1.835 linhas do grupo "Other" no bentos — domina a série
   temporal e provavelmente merece grupo próprio
 - Basemap vetorial (MapLibre GL) no lugar do raster, se quiser mais acabamento

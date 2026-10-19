@@ -99,6 +99,16 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 .nav button:hover { color: #fff; background: rgba(255, 255, 255, 0.09); }
+
+/* O número do eixo antes do nome, como no site institucional. */
+.nav-n {
+  display: inline-block;
+  margin-right: 7px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  opacity: 0.55;
+}
+.nav button[aria-selected="true"] .nav-n { opacity: 1; color: var(--eixo, var(--coral)); }
 .nav button[aria-selected="true"] {
   background: #fff;
   color: var(--navy);
@@ -149,39 +159,120 @@ main { height: calc(100vh - var(--appbar-h)); position: relative; }
 .section-head p { color: var(--muted); margin: 10px 0 0; max-width: 62ch; }
 
 /* ===========================================================================
-   Mapa — tela cheia com paineis flutuantes
-   A diferenca mais visivel em relacao ao layout anterior: o mapa nao e mais
-   um retangulo dentro de um card dentro de uma grade. Ele ocupa a area toda
-   e os controles pousam por cima.
+   Eixos: página de leitura
    =========================================================================== */
 
-.view--map { display: none; }
-.view--map[data-active] { display: block; }
+.eixo-head {
+  padding: 10px 0 30px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 34px;
+}
+.eixo-head .eyebrow { color: var(--eixo, var(--coral)); }
+.eixo-head h2 {
+  font-size: 36px;
+  line-height: 1.14;
+  color: var(--navy);
+  max-width: 20ch;
+}
+.eixo-head .lede {
+  color: var(--muted);
+  margin: 14px 0 0;
+  max-width: 68ch;
+  font-size: 15.5px;
+}
 
-#map { position: absolute; inset: 0; background: var(--offwhite); }
+.block { margin-bottom: 54px; }
+.block:last-child { margin-bottom: 20px; }
 
+/* A pergunta é o título de cada bloco: o site institucional apresenta toda
+   linha de pesquisa como pergunta, e é assim que um gestor chega ao dado. */
+.question {
+  font-family: var(--ff-display);
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.25;
+  margin: 0 0 12px;
+  max-width: 34ch;
+}
+
+/* A leitura automática: uma ou duas frases calculadas da seleção atual.
+   A barra lateral na cor do eixo a separa do texto editorial fixo. */
+.reading {
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--text);
+  max-width: 76ch;
+  margin: 0 0 20px;
+  padding-left: 15px;
+  border-left: 3px solid var(--eixo, var(--coral));
+}
+.reading strong { font-weight: 650; color: var(--navy); }
+.reading:empty { display: none; }
+
+.reading--caveat {
+  border-left-color: var(--line-strong);
+  color: var(--muted);
+  font-size: 13.5px;
+  margin-top: 18px;
+}
+.reading--caveat strong { color: var(--muted); font-weight: 700; }
+
+/* ===========================================================================
+   Mapa embutido no bloco
+   =========================================================================== */
+
+.map-slot {
+  height: 64vh;
+  min-height: 440px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  background: var(--offwhite);
+}
+
+.mapkit { position: relative; display: flex; flex-direction: column; height: 100%; }
+#map { flex: 1; min-height: 0; background: var(--offwhite); }
+
+/* Faixa de controles acima do mapa, horizontal: na arquitetura por eixos o
+   painel vertical flutuante roubava largura justamente de quem só quer ler. */
+.mapkit-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.mapkit-bar .field { margin: 0; min-width: 168px; }
+.mapkit-bar .field--wide { min-width: 232px; }
+/* Os rotulos sao curtos mas "Modo de Visualizacao" quebrava em duas linhas e
+   desalinhava a faixa inteira. */
+.mapkit-bar .field > label { white-space: nowrap; }
+.mapkit-bar .field--chips { min-width: auto; }
+.mapkit-bar .legend-inline { margin-left: auto; }
+
+/* Perfil do sítio: desliza por cima do mapa, dentro do slot. */
 .panel {
   position: absolute;
   z-index: 600;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(14px) saturate(1.3);
   -webkit-backdrop-filter: blur(14px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: var(--r-lg);
+  border-radius: var(--r);
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-
-.panel--controls {
-  top: 18px; left: 18px; bottom: 18px;
-  width: 316px;
-}
 .panel--profile {
-  top: 18px; right: 18px; bottom: 18px;
-  width: 388px;
-  transform: translateX(calc(100% + 28px));
+  top: 14px; right: 14px; bottom: 14px;
+  width: 372px;
+  transform: translateX(calc(100% + 24px));
   opacity: 0;
   pointer-events: none;
   transition: transform var(--t-slow) var(--ease-out), opacity var(--t) var(--ease);
@@ -189,17 +280,16 @@ main { height: calc(100vh - var(--appbar-h)); position: relative; }
 .panel--profile[data-open] { transform: none; opacity: 1; pointer-events: auto; }
 
 .panel-head {
-  padding: 16px 18px 13px;
+  padding: 15px 17px 12px;
   border-bottom: 1px solid var(--line);
   flex: none;
   display: flex;
   align-items: flex-start;
   gap: 10px;
 }
-.panel-head h3 { font-size: 18px; color: var(--navy); line-height: 1.25; }
+.panel-head h3 { font-size: 17px; color: var(--navy); line-height: 1.25; }
 .panel-head .eyebrow { margin-bottom: 4px; }
-
-.panel-body { padding: 16px 18px 20px; overflow-y: auto; flex: 1; }
+.panel-body { padding: 15px 17px 18px; overflow-y: auto; flex: 1; }
 
 .panel-close {
   appearance: none; border: 0; background: transparent;
@@ -305,7 +395,7 @@ select.input:focus, input.input:focus {
    Metricas
    =========================================================================== */
 
-.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 18px; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
 .metric {
   background: var(--surface-alt);
   border: 1px solid var(--line);
@@ -359,6 +449,8 @@ select.input:focus, input.input:focus {
   padding: 15px 18px 12px;
   border-bottom: 1px solid var(--line);
 }
+.card-head--row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.card-head--row .grow { flex: 1; min-width: 180px; }
 .card-head h3 { font-size: 16px; color: var(--navy); }
 .card-head .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .card-body { padding: 16px 18px; }
@@ -484,11 +576,8 @@ select.input:focus, input.input:focus {
   font-size: 12px;
   min-width: 150px;
 }
-.map-legend--inline {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
+.map-legend--inline { margin: 0; }
+.map-legend--inline .lg-ramp { width: 150px; }
 .map-legend--inline:empty { display: none; }
 .map-legend .lg-title {
   font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em;
@@ -611,3 +700,26 @@ input.gridjs-input {
   .section-head h2 { font-size: 24px; }
 }
 
+
+/* Select compacto no cabeçalho de um card. */
+.input--inline { width: auto; min-width: 190px; padding-top: 7px; padding-bottom: 7px; }
+
+/* A view do mapa deixou de existir como aba própria; o mapkit migra entre os
+   slots dos eixos e só fica escondido enquanto nenhum eixo o reivindica. */
+#mapkit { height: 100%; }
+#mapkit[hidden] { display: none; }
+
+@media (max-width: 860px) {
+  .eixo-head h2 { font-size: 26px; }
+  .question { font-size: 19px; }
+  .map-slot { height: 70vh; }
+  .panel--profile {
+    top: auto; bottom: 10px; left: 10px; right: 10px;
+    width: auto; max-height: 56%;
+    transform: translateY(calc(100% + 20px));
+  }
+  .panel--profile[data-open] { transform: none; }
+  .mapkit-bar { gap: 10px; padding: 10px 12px; }
+  .mapkit-bar .field, .mapkit-bar .field--wide { min-width: 132px; flex: 1; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+}
