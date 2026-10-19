@@ -28,7 +28,6 @@ export const EIXOS = [
     short:  { pt: 'Biodiversidade',  en: 'Biodiversity' },
     title:  { pt: 'Biodiversidade, funcionamento e resiliência dos recifes',
               en: 'Reef biodiversity, functioning and resilience' },
-    accent: { pt: 'resiliência',     en: 'resilience' },
     lede: {
       pt: 'Censos visuais de peixes recifais e fotoquadrados da comunidade bentônica em Fernando de Noronha, acompanhando como a composição e a abundância dessas comunidades se transformam ao longo do tempo.',
       en: 'Underwater visual censuses of reef fish and photoquadrats of the benthic community in Fernando de Noronha, tracking how composition and abundance change over time.',
@@ -40,7 +39,6 @@ export const EIXOS = [
     short:  { pt: 'Impactos',  en: 'Impacts' },
     title:  { pt: 'Impactos locais, globais e sinérgicos',
               en: 'Local, global and synergistic impacts' },
-    accent: { pt: 'sinérgicos', en: 'synergistic' },
     lede: {
       pt: 'Amostras de água e sedimento dentro e fora de unidades de conservação, avaliando nutrientes, metais, hidrocarbonetos e indicadores de contaminação por esgoto.',
       en: 'Seawater and sediment samples inside and outside protected areas, assessing nutrients, metals, hydrocarbons and sewage contamination indicators.',
@@ -52,7 +50,6 @@ export const EIXOS = [
     short:  { pt: 'Serviços',  en: 'Services' },
     title:  { pt: 'Serviços ecossistêmicos',
               en: 'Ecosystem services' },
-    accent: { pt: 'ecossistêmicos', en: 'services' },
     lede: {
       pt: 'Como a biodiversidade marinha contribui para o bem-estar da sociedade — do ciclo do carbono nos bancos de rodolitos à alimentação das comunidades pesqueiras.',
       en: 'How marine biodiversity supports human well-being — from the carbon cycle in rhodolith beds to the diet of fishing communities.',
@@ -64,7 +61,6 @@ export const EIXOS = [
     short:  { pt: 'Gestão',  en: 'Management' },
     title:  { pt: 'Subsídios à gestão e ao manejo',
               en: 'Evidence for management' },
-    accent: { pt: 'gestão', en: 'management' },
     lede: {
       pt: 'Fernando de Noronha é dividida entre duas categorias de proteção: o Parque Nacional Marinho, de proteção integral, e a Área de Proteção Ambiental, de uso sustentável. Esta seção compara o que os dados mostram de um lado e de outro.',
       en: 'Fernando de Noronha is split between two protection categories: the Marine National Park, fully protected, and the Environmental Protection Area, of sustainable use. This section compares what the data show on each side.',

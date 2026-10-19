@@ -40,7 +40,6 @@ a:hover { text-decoration: underline; }
 .eyebrow--muted { color: var(--muted); }
 
 .display { font-family: var(--ff-display); font-weight: 700; color: var(--navy); }
-.display-accent { font-style: italic; color: var(--gold); }
 
 /* ===========================================================================
    Barra superior

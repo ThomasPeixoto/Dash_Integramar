@@ -162,15 +162,10 @@ function renderEixoHeads() {
     if (!el) continue;
     const lg = getLang();
     const title = e.title[lg] ?? e.title.pt;
-    const accent = e.accent[lg] ?? e.accent.pt;
-    // Destaca uma palavra do título em itálico dourado, como no site.
-    const html = accent && title.includes(accent)
-      ? title.replace(accent, `<span class="display-accent">${accent}</span>`)
-      : title;
     el.style.setProperty('--eixo', e.color);
     el.innerHTML = `
       <p class="eyebrow">${lg === 'pt' ? 'EIXO' : 'AXIS'} ${e.n}</p>
-      <h2>${html}</h2>
+      <h2>${title}</h2>
       <p class="lede">${e.lede[lg] ?? e.lede.pt}</p>
       <div class="counters">${counters(e.id).map((c) =>
         `<div class="counter"><div class="v">${c[0]}</div><div class="k">${c[1]}</div></div>`).join('')}</div>
