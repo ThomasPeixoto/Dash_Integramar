@@ -190,16 +190,28 @@ function creditsHTML(eixo) {
     .filter(([, c]) => c)
     .map(([ds, c]) => {
       const foto = `<img src="assets/img/people/${c.photo}" alt="" loading="lazy" width="52" height="52">`;
-      const avatar = c.link
-        ? `<a class="credit-avatar" href="${c.link}" target="_blank" rel="noopener"
-             title="${t('credit_profile')}">${foto}</a>`
+      // A foto leva ao perfil quando existe um; senão ao e-mail; senão não
+      // é link nenhum, para não haver alvo de clique que não faz nada.
+      const destino = c.link ?? (c.email ? `mailto:${c.email}` : null);
+      const avatar = destino
+        ? `<a class="credit-avatar" href="${destino}"${c.link ? ' target="_blank" rel="noopener"' : ''}
+             title="${c.link ? t('credit_profile') : c.email}">${foto}</a>`
         : `<span class="credit-avatar">${foto}</span>`;
+      const contato = c.email
+        ? `<a class="credit-mail" href="mailto:${c.email}">
+             <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+               <path d="M1.5 3.5h13v9h-13z" fill="none" stroke="currentColor" stroke-width="1.3"/>
+               <path d="M1.9 4 8 8.6 14.1 4" fill="none" stroke="currentColor" stroke-width="1.3"
+                     stroke-linecap="round" stroke-linejoin="round"/>
+             </svg>${c.email}</a>`
+        : '';
       return `<div class="credit">
           ${avatar}
           <div class="credit-text">
             <span class="credit-ds">${t(`ds_${ds}`)}</span>
             <span class="credit-name">${c.name}</span>
             <span class="credit-inst">${c.inst[lg] ?? c.inst.pt}</span>
+            ${contato}
           </div>
         </div>`;
     });

@@ -88,30 +88,38 @@ export const CREDITS = {
     name: 'Dr. Cesar M. M. Cordeiro',
     inst: { pt: 'Universidade Estadual do Norte Fluminense', en: 'Universidade Estadual do Norte Fluminense' },
     photo: 'cesar-m-m-cordeiro.webp',
+    email: 'cammcordeiro@gmail.com',
     link: 'https://lattes.cnpq.br/6383192984652602',
   },
   fish: {
     name: 'Dr. Sergio R. Floeter',
     inst: { pt: 'Universidade Federal de Santa Catarina', en: 'Universidade Federal de Santa Catarina' },
     photo: 'sergio-r-floeter.webp',
+    email: 'sergio.floeter@gmail.com',
     link: null,
   },
   productivity: {
     name: 'MSc. Tainá L. Gaspar',
     inst: { pt: 'Universidade Federal de Santa Catarina', en: 'Universidade Federal de Santa Catarina' },
     photo: 'taina-l-gaspar.webp',
+    // Endereço informado foi 'ainalgaspar@gmail.com'. Parece faltar o "t"
+    // inicial de "tainalgaspar"; como é o contato público de uma pessoa real,
+    // fica pendente de confirmação em vez de ir ao ar possivelmente errado.
+    email: null,
     link: null,
   },
   pollution: {
     name: 'Drª. Cybelle M. Longhini',
     inst: { pt: 'Universidade Federal do Rio Grande do Norte', en: 'Universidade Federal do Rio Grande do Norte' },
     photo: 'cybelle-m-longhini.webp',
+    email: 'belle.longhini@gmail.com',
     link: null,
   },
   fishers: {
     name: 'MSc. Maria Luiza Gallina',
     inst: { pt: 'Universidade Federal do Ceará', en: 'Universidade Federal do Ceará' },
     photo: 'maria-luiza-gallina.webp',
+    email: 'malugallinaxavier@gmail.com',
     link: null,
   },
 };
