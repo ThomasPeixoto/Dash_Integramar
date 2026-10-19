@@ -1,0 +1,74 @@
+/* ===========================================================================
+   IntegraMAR — design tokens
+   Valores lidos diretamente de https://integramar.org (custom properties do
+   tema WordPress) para que o painel e o site institucional nao divirjam.
+   =========================================================================== */
+
+:root {
+  /* --- paleta institucional ---------------------------------------------- */
+  --navy:        #353F7C;
+  --navy-700:    #2B3466;
+  --navy-900:    #20264B;
+  --magenta:     #982263;
+  --coral:       #F76043;
+  --coral-600:   #E04A2E;
+  --gold:        #FDA749;
+  --teal:        #3C9BA5;
+  --offwhite:    #E1EAF9;
+
+  /* --- texto e superficie ------------------------------------------------ */
+  --text:        #1a1a2e;
+  --muted:       #5a6a8a;
+  --surface:     #ffffff;
+  --surface-alt: #F7F9FD;
+  --line:        rgba(53, 63, 124, 0.12);
+  --line-strong: rgba(53, 63, 124, 0.22);
+
+  /* --- tipografia --------------------------------------------------------
+     O site usa Inter para corpo e Playfair Display (700/900, com italico)
+     para titulos. O italico dourado do Playfair e a assinatura visual da
+     marca -- esta reproduzido em .display-accent. */
+  --ff:         'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --ff-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --ff-mono:    ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  /* --- profundidade ------------------------------------------------------ */
+  --shadow-sm: 0 1px 2px rgba(32, 38, 75, 0.06);
+  --shadow:    0 4px 16px rgba(32, 38, 75, 0.08);
+  --shadow-lg: 0 12px 40px rgba(32, 38, 75, 0.16);
+  --shadow-xl: 0 24px 64px rgba(32, 38, 75, 0.22);
+
+  /* --- forma e movimento ------------------------------------------------- */
+  --r-sm: 8px;
+  --r:    12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 140ms;
+  --t:      240ms;
+  --t-slow: 420ms;
+
+  /* --- cor por conjunto de dados -----------------------------------------
+     Cada conjunto recebe uma cor da paleta da marca, e so dela. O mapa, as
+     legendas, os graficos e os chips do explorador leem daqui -- mudar a cor
+     de um conjunto e mudar uma linha. */
+  --ds-benthos:      #3C9BA5;
+  --ds-fish:         #353F7C;
+  --ds-fishers:      #FDA749;
+  --ds-pollution:    #982263;
+  --ds-productivity: #F76043;
+
+  --appbar-h: 62px;
+  --shell:    1120px;
+}
+
+/* O painel e um instrumento de leitura de dados: forcar tema escuro muda a
+   leitura das escalas de cor do mapa e dos graficos. Mantemos claro e
+   apenas respeitamos reducao de movimento. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

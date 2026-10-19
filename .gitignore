@@ -1,0 +1,10 @@
+# Pre-compressao e para auto-hospedagem; o GitHub Pages ja negocia gzip sozinho.
+*.gz
+
+# Dados linha-a-linha dos conjuntos ainda nao publicados. Num repositorio
+# publico nao ha como desfazer uma publicacao: o historico do git guarda o
+# arquivo mesmo depois de removido. Ver README, secao "Conjuntos nao publicados".
+public/data/tables/restricted/
+
+
+.DS_Store
