@@ -464,6 +464,17 @@ select.input:focus, input.input:focus {
 }
 .leaflet-bar { border: 0 !important; }
 
+/* O navegador desenha um anel de foco preto em qualquer SVG clicavel, e o
+   Leaflet marca marcadores e poligonos como focavel. Com o mouse isso aparece
+   como um contorno preto grosso em volta da area recem-clicada. Suprimimos o
+   anel do clique e preservamos o do teclado, que e o que importa para
+   acessibilidade. */
+.leaflet-interactive:focus { outline: none; }
+.leaflet-interactive:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
 /* Marcadores: halo que pulsa discretamente ao passar o mouse. */
 .site-marker { transition: filter var(--t-fast) var(--ease); }
 .site-marker:hover { filter: brightness(1.12) drop-shadow(0 2px 6px rgba(32,38,75,.35)); }

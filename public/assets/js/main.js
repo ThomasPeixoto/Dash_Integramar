@@ -39,6 +39,7 @@ let chartTrend, chartTaxon, chartHeat;
     tDataset: 'benthos', tType: 'lines', tTaxa: [],
   });
 
+  applyLabels();
   buildControls();
   buildTemporalControls();
   wireViews();
@@ -96,12 +97,12 @@ function buildControls() {
 
   const zones = uniq(core.sites.map((s) => s.zone)).sort()
     .map((z) => ({ v: z, label: core.sites.find((s) => s.zone === z)?.zone_label ?? z }));
-  fillSelect($('#f-zone'), [{ v: '', label: t('all_zones') }, ...zones], '');
+  fillSelect($('#f-zone'), [{ v: '', label: t('all_zones') }, ...zones], store.get('zone') ?? '');
   $('#f-zone').onchange = (e) => store.set('zone', e.target.value || null);
 
   const sites = [...core.sites].sort((a, b) => a.site_label.localeCompare(b.site_label))
     .map((s) => ({ v: s.Site, label: s.site_label }));
-  fillSelect($('#f-site'), [{ v: '', label: t('all_sites') }, ...sites], '');
+  fillSelect($('#f-site'), [{ v: '', label: t('all_sites') }, ...sites], store.get('site') ?? '');
   $('#f-site').onchange = (e) => store.set('site', e.target.value || null);
 
   fillSelect($('#f-mode'), MAP_MODES.map((m) => ({ v: m, label: t(`mode_${m}`) })), store.get('mode'));
@@ -395,8 +396,15 @@ function wireViews() {
   };
 }
 
-function relabel() {
+/** Escreve no DOM todo elemento marcado com data-t / data-t-ph. */
+function applyLabels() {
   $$('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
+  $$('[data-t-ph]').forEach((el) => { el.placeholder = t(el.dataset.tPh); });
+  document.title = `IntegraMAR — ${t('brand_sub')}`;
+}
+
+function relabel() {
+  applyLabels();
   buildControls();
   buildTemporalControls();
   renderMetrics();
