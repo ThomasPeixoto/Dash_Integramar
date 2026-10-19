@@ -29,7 +29,9 @@ function serie(xs) {
 }
 
 const siteName = (core, code) =>
-  core.sites.find((s) => s.Site === code)?.site_label ?? code;
+  (core.national?.sites ?? []).find((s) => s.Site === code)?.site_label
+  ?? core.sites.find((s) => s.Site === code)?.site_label
+  ?? code;
 
 // ---------------------------------------------------------------------------
 // Eixo 1 — mapa
@@ -45,7 +47,8 @@ export function readE1Map(core, state, sites) {
     const porDs = state.activeDatasets
       .map((ds) => {
         const c = sites.filter((s) => s[`has_${ds}`]).length;
-        return c ? `${b(c)} ${t(`ds_${ds}`).toLowerCase()}` : null;
+        // sem toLowerCase: os rótulos carregam nomes próprios ("Noronha")
+        return c ? `${b(c)} ${t(`ds_${ds}`)}` : null;
       })
       .filter(Boolean);
     return pt()
@@ -53,7 +56,7 @@ export function readE1Map(core, state, sites) {
       : `The current selection holds ${b(n)} monitored sites — ${serie(porDs)}. Each point sits at the coordinate declared by its own source, so two datasets at one site may appear apart.`;
   }
 
-  const { values, unit } = siteValues(core, mode, state.variable);
+  const { values, unit } = siteValues(core, mode, state.variable, state.scope);
   const comValor = [...values.entries()]
     .filter(([code, v]) => Number.isFinite(v) && sites.some((s) => s.Site === code));
   if (!comValor.length) {
@@ -260,4 +263,47 @@ export function readE4Absent(core) {
   return pt()
     ? `A cobertura bentônica fica de fora desta comparação: há ${b(apa)} sítio na APA contra ${b(par)} no parque. Comparar um sítio com três não é comparar zonas — é comparar sítios com outro nome.`
     : `Benthic cover is left out of this comparison: there ${apa === 1 ? 'is' : 'are'} ${b(apa)} site in the APA against ${b(par)} in the park. Comparing one site with three is not comparing zones — it is comparing sites under another name.`;
+}
+
+// ---------------------------------------------------------------------------
+// Eixo 1 — peixe na escala nacional
+// ---------------------------------------------------------------------------
+
+/**
+ * Lê a série nacional SEM agregá-la. A frase diz quantas regiões a seleção
+ * cobre e o que cada extremo mostra, mas nunca afirma uma tendência "do
+ * Brasil": a composição geográfica muda a cada ano e uma média nacional
+ * seria geografia disfarçada de tempo.
+ */
+export function readE1Nacional(rows, rotulo = (g) => g) {
+  if (!rows.length) {
+    return pt() ? 'Sem série de peixe para o recorte atual.'
+                : 'No fish series for the current selection.';
+  }
+
+  const anos = uniq(rows.map((r) => r.Year)).sort((a, b) => a - b);
+  const regioes = uniq(rows.map((r) => r.group));
+  const censos = sum(rows.map((r) => r.n_events));
+
+  // Cobertura temporal de cada região: é o que explica por que não se agrega.
+  const cobertura = regioes.map((g) => {
+    const rs = rows.filter((r) => r.group === g);
+    const a = uniq(rs.map((r) => r.Year)).sort((x, y) => x - y);
+    return { g, n: sum(rs.map((r) => r.n_events)), ini: a[0], fim: a[a.length - 1], anos: a.length };
+  }).sort((a, b) => b.n - a.n);
+
+  const maior = cobertura[0];
+  const parteMaior = Math.round(100 * maior.n / censos);
+
+  if (regioes.length === 1) {
+    const m = cobertura[0];
+    const porCenso = sum(rows.map((r) => r.total)) / Math.max(1, m.n);
+    return pt()
+      ? `${b(rotulo(m.g))}: ${b(fmtInt(m.n))} censos em ${b(m.anos)} anos (${m.ini}–${m.fim}), com média de ${b(fmtInt(porCenso))} indivíduos por censo.`
+      : `${b(rotulo(m.g))}: ${b(fmtInt(m.n))} censuses over ${b(m.anos)} years (${m.ini}–${m.fim}), averaging ${b(fmtInt(porCenso))} individuals per census.`;
+  }
+
+  return pt()
+    ? `${b(fmtInt(censos))} censos em ${b(regioes.length)} regiões, de ${b(anos[0])} a ${b(anos[anos.length - 1])}. ${b(rotulo(maior.g))} responde por ${b(parteMaior + '%')} deles e cobre ${maior.ini}–${maior.fim}; as demais entram e saem ao longo do período. Por isso cada região é uma linha própria: uma média nacional mudaria junto com quem foi amostrado naquele ano, não com os peixes.`
+    : `${b(fmtInt(censos))} censuses across ${b(regioes.length)} regions, from ${b(anos[0])} to ${b(anos[anos.length - 1])}. ${b(rotulo(maior.g))} accounts for ${b(parteMaior + '%')} of them and spans ${maior.ini}–${maior.fim}; the others come and go across the period. That is why each region is its own line: a national average would move with who was sampled that year, not with the fish.`;
 }

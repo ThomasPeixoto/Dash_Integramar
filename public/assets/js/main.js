@@ -9,17 +9,18 @@
 
 import { loadCore, fmtInt, fmt, uniq, sum, mean, groupBy, topN } from './data.js';
 import { createStore } from './store.js';
+import { buildNational, REGION_LABEL, REGION_ORDER } from './national.js';
 import { initMap, resizeMap, redrawMap, fitToData, setLegendSlot } from './map.js';
 import {
   groupSeries, taxonSeries, trendOption, taxonOption, heatmapOption,
   barOption, groupedBarOption, zoneLineOption, CAT,
 } from './charts.js';
 import {
-  readE1Map, readE1Time, readE2, readE3Rodolitos, readE3Pesca,
+  readE1Map, readE1Time, readE1Nacional, readE2, readE3Rodolitos, readE3Pesca,
   readE4Fish, readE4Pollution, readE4Absent, zoneFish, zonePollution,
 } from './narrative.js';
 import {
-  DATASETS, DS_COLOR, RAMP, MODE_VARS, SPATIAL_LAYERS, EIXOS, eixoById,
+  DATASETS, NATIONAL_DATASETS, DS_COLOR, RAMP, MODE_VARS, SPATIAL_LAYERS, EIXOS, eixoById,
   t, setLang, getLang, optLabel, varLabel, CREDITS,
 } from './config.js';
 
@@ -28,12 +29,15 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 let core, store;
 const charts = {};
+let msgNacional = '';
 
 // Mapa e séries só existem em alguns eixos; esta tabela diz o que cada um
 // reivindica, e é o que o roteador consulta ao trocar de página.
 const EIXO_MAP = {
-  eixo1: { slot: 'slot-eixo1', modes: ['datasets', 'benthos', 'fish'], datasets: ['benthos', 'fish'] },
-  eixo2: { slot: 'slot-eixo2', modes: ['pollution'], datasets: ['pollution'] },
+  eixo1: { slot: 'slot-eixo1', scope: 'national',
+           modes: ['datasets', 'fish'], datasets: NATIONAL_DATASETS },
+  eixo2: { slot: 'slot-eixo2', scope: 'noronha',
+           modes: ['pollution'], datasets: ['pollution'] },
 };
 
 // Estado de mapa lembrado por eixo, para que voltar a um eixo não perca o
@@ -42,6 +46,8 @@ const eixoState = {
   eixo1: { mode: 'datasets', variable: null, layer: 'none' },
   eixo2: { mode: 'pollution', variable: 'Salinity', layer: 'none' },
 };
+
+const regionLabel = (r) => REGION_LABEL[r]?.[getLang()] ?? r;
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -55,14 +61,20 @@ const eixoState = {
     return;
   }
 
+  core.national = buildNational(core);
+  if (core.national) {
+    msgNacional = `${core.national.sites.length} sítios · ${core.national.regions.length} regiões`;
+  }
+
   store = createStore({
     eixo: 'eixo1',
+    scope: 'national', uc: null,
     lang: 'pt',
     level: 'archipelago', zone: null, site: null,
     mode: 'datasets', variable: null, layer: 'none',
     activeDatasets: ['benthos', 'fish'],
     selectedSite: null,
-    tDataset: 'benthos', tType: 'lines', tTaxa: [],
+    tDataset: core.national ? 'fish' : 'benthos', tType: 'lines', tTaxa: [],
     e2Param: 'Salinity', e4Param: 'DIN',
   });
 
@@ -119,8 +131,10 @@ function showEixo(id) {
     const saved = eixoState[id];
     store.set({
       ...saved,
-      activeDatasets: cfg.datasets,
+      scope: cfg.scope ?? 'noronha',
+      activeDatasets: cfg.datasets.filter((ds) => ds !== 'benthos_islands' || core.national),
       selectedSite: null,
+      level: 'archipelago', zone: null, uc: null, site: null,
     });
     buildMapBar(id, cfg);
     $(`#${cfg.slot}`).appendChild(kit);
@@ -220,6 +234,16 @@ function creditsHTML(eixo) {
 function counters(id) {
   const S = core.sites;
   if (id === 'eixo1') {
+    if (core.national) {
+      const fy = core.reef_fish_year ?? [];
+      const anos = uniq(fy.map((r) => r.year));
+      return [
+        [fmtInt(core.national.sites.length), t('m_sites')],
+        [fmtInt(core.national.regions.length), t('lvl_region') === 'Região' ? 'Regiões' : 'Regions'],
+        [fmtInt(sum(fy.map((r) => r.n_events))), t('censuses')],
+        [`${Math.min(...anos)}–${Math.max(...anos)}`, t('year_range')],
+      ];
+    }
     const anos = uniq([...core.fish_year.map((r) => r.Year), ...core.benthos_year_fg.map((r) => r.Year)]);
     return [
       [fmtInt(S.filter((s) => s.has_benthos || s.has_fish).length), t('m_sites')],
@@ -263,15 +287,21 @@ function buildMapBar(id, cfg) {
   const spec = MODE_VARS[mode];
   const multiMode = cfg.modes.length > 1;
 
+  const nac = cfg.scope === 'national' && core.national;
+
   bar.innerHTML = `
     <div class="field">
       <label for="f-level">${t('f_level')}</label>
       <select class="input" id="f-level"></select>
     </div>
-    <div class="field" id="f-zone-wrap" hidden>
-      <label for="f-zone">${t('lvl_zone')}</label>
+    <div class="field field--wide" id="f-zone-wrap" hidden>
+      <label for="f-zone">${nac ? t('lvl_region') : t('lvl_zone')}</label>
       <select class="input" id="f-zone"></select>
     </div>
+    ${nac ? `<div class="field field--wide" id="f-uc-wrap" hidden>
+      <label for="f-uc">${t('lvl_uc')}</label>
+      <select class="input" id="f-uc"></select>
+    </div>` : ''}
     <div class="field field--wide" id="f-site-wrap" hidden>
       <label for="f-site">${t('lvl_site')}</label>
       <select class="input" id="f-site"></select>
@@ -284,34 +314,52 @@ function buildMapBar(id, cfg) {
       <label for="f-var" id="f-var-label">${spec ? t(`f_var_${mode}`) : ''}</label>
       <select class="input" id="f-var"></select>
     </div>
-    <div class="field field--wide">
+    ${nac ? '' : `<div class="field field--wide">
       <label for="f-layer">${t('f_layer')}</label>
       <select class="input" id="f-layer"></select>
-    </div>
+    </div>`}
     ${cfg.datasets.length > 1 ? `<div class="field field--chips">
       <label>${t('f_datasets')}</label>
       <div class="chips" id="f-datasets"></div>
     </div>` : ''}
     <div class="map-legend legend-inline" id="legend"></div>`;
 
-  fillSelect($('#f-level'), [
-    { v: 'archipelago', label: t('lvl_archipelago') },
-    { v: 'zone',        label: t('lvl_zone') },
-    { v: 'site',        label: t('lvl_site') },
-  ], store.get('level'));
+  const niveis = nac
+    ? [{ v: 'archipelago', label: t('lvl_brasil') },
+       { v: 'zone',        label: t('lvl_region') },
+       { v: 'uc',          label: t('lvl_uc') },
+       { v: 'site',        label: t('lvl_site') }]
+    : [{ v: 'archipelago', label: t('lvl_archipelago') },
+       { v: 'zone',        label: t('lvl_zone') },
+       { v: 'site',        label: t('lvl_site') }];
+  fillSelect($('#f-level'), niveis, store.get('level'));
   $('#f-level').onchange = (e) => {
-    store.set({ level: e.target.value, zone: null, site: null });
+    store.set({ level: e.target.value, zone: null, uc: null, site: null });
     syncHierarchy();
   };
 
-  const zones = uniq(core.sites.map((s) => s.zone)).sort()
-    .map((z) => ({ v: z, label: core.sites.find((s) => s.zone === z)?.zone_label ?? z }));
-  fillSelect($('#f-zone'), [{ v: '', label: t('all_zones') }, ...zones], store.get('zone') ?? '');
+  const fonte = nac ? core.national.sites : core.sites;
+
+  const zones = nac
+    // Norte -> sul, não alfabética: a ordem geográfica é a leitura natural
+    // de uma costa, e é a mesma do gráfico estratificado por região.
+    ? REGION_ORDER.filter((r) => core.national.regions.includes(r))
+        .map((r) => ({ v: r, label: regionLabel(r) }))
+    : uniq(core.sites.map((s) => s.zone)).sort()
+        .map((z) => ({ v: z, label: core.sites.find((s) => s.zone === z)?.zone_label ?? z }));
+  fillSelect($('#f-zone'), [{ v: '', label: nac ? t('all_regions') : t('all_zones') }, ...zones],
+             store.get('zone') ?? '');
   $('#f-zone').onchange = (e) => store.set('zone', e.target.value || null);
+
+  if (nac) {
+    const ucs = core.national.ucs.map((u) => ({ v: u, label: u }));
+    fillSelect($('#f-uc'), [{ v: '', label: t('all_ucs') }, ...ucs], store.get('uc') ?? '');
+    $('#f-uc').onchange = (e) => store.set('uc', e.target.value || null);
+  }
 
   // Só oferecemos sítios que têm algum dos conjuntos deste eixo; listar os 21
   // num eixo que cobre 4 produziria seleções vazias sem explicação.
-  const sites = core.sites
+  const sites = fonte
     .filter((s) => cfg.datasets.some((ds) => s[`has_${ds}`]))
     .sort((a, b) => a.site_label.localeCompare(b.site_label))
     .map((s) => ({ v: s.Site, label: s.site_label }));
@@ -330,8 +378,12 @@ function buildMapBar(id, cfg) {
 
   syncVariable();
 
-  fillSelect($('#f-layer'), SPATIAL_LAYERS.map((o) => ({ v: o.v, label: optLabel(o) })), store.get('layer'));
-  $('#f-layer').onchange = (e) => store.set('layer', e.target.value);
+  // Setores costeiros e regiões recifais só existem para Noronha; na escala
+  // nacional o seletor nem é montado.
+  if (!nac) {
+    fillSelect($('#f-layer'), SPATIAL_LAYERS.map((o) => ({ v: o.v, label: optLabel(o) })), store.get('layer'));
+    $('#f-layer').onchange = (e) => store.set('layer', e.target.value);
+  }
 
   if (cfg.datasets.length > 1) {
     makeChips(
@@ -354,8 +406,9 @@ function buildMapBar(id, cfg) {
 
 function syncHierarchy() {
   const lvl = store.get('level');
-  const z = $('#f-zone-wrap'), s = $('#f-site-wrap');
+  const z = $('#f-zone-wrap'), u = $('#f-uc-wrap'), s = $('#f-site-wrap');
   if (z) z.hidden = lvl !== 'zone';
+  if (u) u.hidden = lvl !== 'uc';
   if (s) s.hidden = lvl !== 'site';
 }
 
@@ -400,9 +453,10 @@ function makeChips(el, options, isOn, onToggle) {
 // ---------------------------------------------------------------------------
 
 function visibleSites() {
-  const { level, zone, site, activeDatasets } = store.state;
-  let rows = core.sites;
+  const { level, zone, uc, site, activeDatasets, scope } = store.state;
+  let rows = (scope === 'national' && core.national) ? core.national.sites : core.sites;
   if (level === 'zone' && zone) rows = rows.filter((r) => r.zone === zone);
+  if (level === 'uc'   && uc)   rows = rows.filter((r) => (r.ucs ?? []).some((x) => x.nome === uc));
   if (level === 'site' && site) rows = rows.filter((r) => r.Site === site);
   return rows.filter((r) => activeDatasets.some((ds) => r[`has_${ds}`]));
 }
@@ -423,9 +477,13 @@ const setHTML = (sel, html) => { const el = $(sel); if (el) el.innerHTML = html;
 // ---------------------------------------------------------------------------
 
 function buildTemporalControls() {
-  makeChips($('#t-dataset'),
-    [{ v: 'benthos', label: t('ds_benthos'), color: DS_COLOR.benthos },
-     { v: 'fish',    label: t('ds_fish'),    color: DS_COLOR.fish }],
+  const fontes = core.national
+    ? [{ v: 'fish',            label: t('ds_fish'),            color: DS_COLOR.fish },
+       { v: 'benthos_islands', label: t('ds_benthos_islands'), color: DS_COLOR.benthos_islands },
+       { v: 'benthos',         label: t('ds_benthos'),         color: DS_COLOR.benthos }]
+    : [{ v: 'benthos', label: t('ds_benthos'), color: DS_COLOR.benthos },
+       { v: 'fish',    label: t('ds_fish'),    color: DS_COLOR.fish }];
+  makeChips($('#t-dataset'), fontes,
     (v) => store.get('tDataset') === v,
     (v) => {
       // Trocar de conjunto invalida os táxons escolhidos: os nomes não se
@@ -453,25 +511,97 @@ function chart(id) {
   return charts[id];
 }
 
+/** Códigos de sítio que o recorte atual alcança; vazio = sem recorte. */
+function siteFilter() {
+  const { level, zone, uc, site, scope } = store.state;
+  const fonte = (scope === 'national' && core.national) ? core.national.sites : core.sites;
+  if (level === 'site' && site) return [site];
+  if (level === 'uc'   && uc)
+    return fonte.filter((s) => (s.ucs ?? []).some((x) => x.nome === uc)).map((s) => s.Site);
+  if (level === 'zone' && zone) return fonte.filter((s) => s.zone === zone).map((s) => s.Site);
+  return [];
+}
+
 async function renderTemporal() {
   if (store.get('eixo') !== 'eixo1') return;
   const ds = store.get('tDataset');
-  const unit = ds === 'benthos' ? '%' : '';
-  const nameOf = ds === 'benthos' ? (g) => varLabel('benthos', g) : (g) => g;
-  const rows = groupSeries(core, ds, []);
 
-  setHTML('#read-e1-time', readE1Time(rows, ds, nameOf));
+  // O peixe nacional é estratificado por REGIÃO, nunca agregado. A composição
+  // geográfica do "Brasil" muda a cada ano — o Rio é 44% dos censos e a única
+  // região presente de 2001 a 2005 — então uma linha nacional única mostraria
+  // geografia disfarçada de tendência.
+  if (ds === 'fish' && core.national) return renderTemporalNacional();
 
-  const sub = ds === 'benthos'
-    ? (getLang() === 'pt' ? 'Cobertura média por grupo funcional (%)' : 'Mean cover by functional group (%)')
-    : (getLang() === 'pt' ? 'Abundância por censo, por família' : 'Abundance per census, by family');
+  const nomes = ds === 'benthos_islands'
+    ? (g) => g
+    : (ds === 'benthos' ? (g) => varLabel('benthos', g) : (g) => g);
+  const unit = ds === 'fish' ? '' : '%';
+  const rows = ds === 'benthos_islands' ? seriesIlhas() : groupSeries(core, ds, []);
+
+  setHTML('#read-e1-time', readE1Time(rows, ds, nomes));
+  const sub = ds === 'benthos_islands'
+    ? (getLang() === 'pt' ? 'Cobertura média por grupo, ilhas oceânicas (%)'
+                          : 'Mean cover by group, oceanic islands (%)')
+    : (getLang() === 'pt' ? 'Cobertura média por grupo funcional (%)'
+                          : 'Mean cover by functional group (%)');
   $('#trend-sub').textContent = sub;
   $('#heat-sub').textContent = sub;
+  showTaxonCard(ds !== 'benthos_islands');
 
   if (!rows.length) return;
-  chart('chart-trend')?.setOption(trendOption(rows, { type: store.get('tType'), unit, nameOf }), true);
-  chart('chart-heat')?.setOption(heatmapOption(rows, RAMP[ds] ?? RAMP.datasets, unit, nameOf), true);
+  chart('chart-trend')?.setOption(
+    trendOption(rows, { type: store.get('tType'), unit, nameOf: nomes }), true);
+  chart('chart-heat')?.setOption(
+    heatmapOption(rows, RAMP[ds === 'fish' ? 'fish' : 'benthos'] ?? RAMP.datasets, unit, nomes), true);
 
+  if (ds === 'benthos_islands') return;
+  await renderTaxonCard(ds, unit);
+}
+
+/** Bentos das ilhas oceânicas, já agregado por sítio/ano/grupo no R. */
+function seriesIlhas() {
+  const sitesFiltro = siteFilter();
+  return (core.reef_benthos_year ?? [])
+    .filter((r) => !sitesFiltro.length || sitesFiltro.includes(`B${r.site_id.slice(1)}`))
+    .map((r) => ({ Site: r.site_id, Year: r.year, group: r.functional_group, value: r.mean_cover }));
+}
+
+/** Peixe nacional: uma série por região, em indivíduos por censo. */
+function renderTemporalNacional() {
+  const fy = core.reef_fish_year ?? [];
+  const regiao = new Map(core.national.sites.map((s) => [s.Site, s.region]));
+  const rows = fy.map((r) => ({
+    Site: r.site_id, Year: r.year,
+    group: regiao.get(r.site_id) ?? '—',
+    value: r.n_events ? r.total_abundance / r.n_events : null,
+    n_events: r.n_events, total: r.total_abundance,
+  })).filter((r) => Number.isFinite(r.value));
+
+  const alvo = siteFilter();
+  const rs = alvo.length ? rows.filter((r) => alvo.includes(r.Site)) : rows;
+
+  setHTML('#read-e1-time', readE1Nacional(rs, regionLabel));
+  const sub = getLang() === 'pt'
+    ? 'Indivíduos por censo, por região — nunca agregado em uma linha só'
+    : 'Individuals per census, by region — never pooled into a single line';
+  $('#trend-sub').textContent = sub;
+  $('#heat-sub').textContent = sub;
+  showTaxonCard(false);
+
+  if (!rs.length) return;
+  chart('chart-trend')?.setOption(
+    trendOption(rs, { type: store.get('tType'), unit: '', nameOf: regionLabel }), true);
+  chart('chart-heat')?.setOption(
+    heatmapOption(rs, RAMP.fish, '', regionLabel), true);
+}
+
+/** O card de táxons só faz sentido onde há tabela de táxon por sítio/ano. */
+function showTaxonCard(mostrar) {
+  const card = $('#chart-taxon')?.closest('.card');
+  if (card) card.hidden = !mostrar;
+}
+
+async function renderTaxonCard(ds, unit) {
   const taxa = await taxonSeries(core, ds, []);
   const totals = [...groupBy(taxa, 'name')]
     .map(([name, g]) => [name, sum(g.map((r) => r.value))])

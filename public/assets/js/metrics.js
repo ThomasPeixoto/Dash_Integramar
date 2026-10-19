@@ -27,9 +27,29 @@ const UNITS = {
 /**
  * @returns {{ values: Map<string, number>, unit: string }}
  */
-export function siteValues(core, mode, varName) {
+export function siteValues(core, mode, varName, scope = 'noronha') {
   const values = new Map();
   const unit = (UNITS[mode] ?? (() => ''))(varName);
+
+  // Escala nacional: as mesmas métricas, lidas das tabelas do ReefSYN. As
+  // regras de agregação são as mesmas — riqueza nunca somada entre anos,
+  // abundância média ponderada pelo esforço.
+  if (scope === 'national' && mode === 'fish' && core.reef_fish_year) {
+    const porSitio = groupBy(core.reef_fish_year, 'site_id');
+    if (varName === 'richness' || varName === 'n_families') {
+      const col = varName === 'richness' ? 'n_species' : 'n_families';
+      for (const r of core.reef_fish_summary ?? []) values.set(r.site_id, r[col]);
+    } else if (varName === 'n_events' || varName === 'total_abundance') {
+      for (const [site, g] of porSitio) values.set(site, sum(g.map((r) => r[varName])));
+    } else {
+      for (const [site, g] of porSitio) {
+        const ev = sum(g.map((r) => r.n_events));
+        values.set(site, ev > 0 ? sum(g.map((r) => r.total_abundance)) / ev : null);
+      }
+    }
+    for (const [k, v] of values) if (!Number.isFinite(v)) values.set(k, null);
+    return { values, unit };
+  }
 
   if (mode === 'benthos') {
     // `proportion` ja vem em escala percentual (0-100) do ETL em R.

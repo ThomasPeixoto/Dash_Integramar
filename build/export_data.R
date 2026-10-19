@@ -36,6 +36,7 @@ suppressPackageStartupMessages({
 args      <- commandArgs(trailingOnly = TRUE)
 DASH_DIR  <- if (length(args) >= 1) args[1] else "../dashboard"
 OUT_DIR   <- if (length(args) >= 2) args[2] else "public/data"
+REEF_IN   <- if (length(args) >= 3) args[3] else "data"
 
 stopifnot(dir.exists(DASH_DIR))
 dir.create(file.path(OUT_DIR, "geo"),    recursive = TRUE, showWarnings = FALSE)
@@ -313,6 +314,55 @@ core <- list(
   pollution_nd     = encode_table(as.data.frame(d$pollution_nd))
 )
 
+# ---------------------------------------------------------------------------
+# ReefSYN — cobertura nacional
+# ---------------------------------------------------------------------------
+#
+# Gerados por build/extract_reefsyn.R e build/extract_reefsyn_benthos.R, que
+# moram neste projeto porque a fonte (~/Área de trabalho/ReefSYN) nao esta no
+# cluster. Se os arquivos nao existirem, o site sai so com Noronha -- o painel
+# degrada, nao quebra.
+#
+# As tres fontes NAO sao intercambiaveis e o site as trata como camadas
+# distintas, cada uma com sua cobertura:
+#   fish             ReefSYN nacional   232 sitios   2001-2023
+#   benthos_islands  ReefSYN XV          12 sitios   2013-2019  cobertura absoluta
+#   benthos          PELD-ILOC Noronha    4 sitios   2021-2024  cobertura absoluta
+# As duas de bentos usam categorias diferentes (ver extract_reefsyn_benthos.R)
+# e por isso nunca sao concatenadas numa serie so.
+reef_path <- file.path(DASH_DIR, "..", "site", "data")
+rf <- file.path(REEF_IN, "reefsyn_fish.rds")
+rb <- file.path(REEF_IN, "reefsyn_benthos.rds")
+
+if (file.exists(rf)) {
+  R <- readRDS(rf)
+  core$reef_sites      <- encode_table(round_coords(as.data.frame(R$sites)))
+  core$reef_site_uc    <- encode_table(as.data.frame(R$site_uc))
+  core$reef_fish_year  <- encode_table(as.data.frame(R$fish_site_year))
+  core$reef_fish_summary <- encode_table(as.data.frame(R$fish_summary))
+  # fish_comp tem 10 mil linhas e so a aba temporal precisa dela. No core ela
+  # levava o boot de 17 para 123 KB gzip; na camada sob demanda, o mapa abre
+  # na mesma velocidade de antes.
+  reef_lazy <- list(reef_fish_comp = R$fish_comp)
+  msg("ReefSYN peixes: %d sitios, %d linhas sitio/ano, %d de composicao (sob demanda)",
+      nrow(R$sites), nrow(R$fish_site_year), nrow(R$fish_comp))
+} else {
+  msg("ReefSYN peixes ausente (%s) — site sai so com Noronha", rf)
+}
+
+if (file.exists(rb)) {
+  B <- readRDS(rb)
+  core$reef_benthos_sites   <- encode_table(round_coords(as.data.frame(B$sites)))
+  core$reef_benthos_year    <- encode_table(as.data.frame(B$site_year))
+  core$reef_benthos_summary <- encode_table(as.data.frame(B$summary))
+  msg("ReefSYN bentos: %d sitios, %d linhas sitio/ano/grupo",
+      nrow(B$sites), nrow(B$site_year))
+} else {
+  msg("ReefSYN bentos ausente (%s)", rb)
+}
+
+# O core so e gravado depois do bloco do ReefSYN: as tabelas nacionais
+# entram nele, e escrever antes as deixaria de fora em silencio.
 sz_core <- write_json_file(core, file.path(OUT_DIR, "core.json"))
 msg("core.json           %8.1f KB", sz_core / 1024)
 
@@ -347,14 +397,16 @@ if (file.exists(island_path)) write_geo(readRDS(island_path), "island")
 # nao existe senha que segure: o que esta em public/ esta publico.  Por isso
 # eles saem em tables/restricted/ -- e uma decisao de DEPLOY (subir ou nao a
 # pasta), nao de codigo.
-raw_tables <- list(
+raw_tables <- c(
+  if (exists("reef_lazy")) lapply(reef_lazy, function(x) list(tbl = x, restricted = FALSE)) else list(),
+list(
   benthos_raw        = list(tbl = d$benthos_raw,         restricted = FALSE),
   benthos_quad_fg    = list(tbl = d$benthos_quad_fg,     restricted = FALSE),
   benthos_year_sp    = list(tbl = d$benthos_site_year_sp,restricted = FALSE),
   fish_raw           = list(tbl = d$fish_raw,            restricted = FALSE),
   fish_year_sp       = list(tbl = d$fish_site_year_sp,   restricted = FALSE),
   fishers            = list(tbl = d$fishers,             restricted = TRUE)
-)
+))
 
 manifest <- list()
 for (nm in names(raw_tables)) {

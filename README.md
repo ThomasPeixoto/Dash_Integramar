@@ -9,12 +9,36 @@ A navegação é pelos **quatro eixos temáticos** da Rede IntegraMAR, espelhand
 eixos, não abas irmãs: o público-alvo são gestores de UC e tomadores de
 decisão, que chegam por pergunta, não por ferramenta.
 
-| eixo | conjunto | linha de pesquisa no site |
-|---|---|---|
-| 1 Biodiversidade | bentos, peixes | Dinâmica temporal de comunidades |
-| 2 Impactos | poluição | Poluição Química e Plástica |
-| 3 Serviços | produtividade, pescadores | Rodolitos e Carbono Azul · Pesca e Nutrição |
-| 4 Gestão | peixes, poluição | Efetividade das ações de conservação |
+| eixo | conjunto | escala | linha de pesquisa no site |
+|---|---|---|---|
+| 1 Biodiversidade | peixes, bentos | **nacional** | Dinâmica temporal de comunidades |
+| 2 Impactos | poluição | Noronha | Poluição Química e Plástica |
+| 3 Serviços | produtividade, pescadores | Noronha | Rodolitos e Carbono Azul · Pesca e Nutrição |
+| 4 Gestão | peixes, poluição | Noronha | Efetividade das ações de conservação |
+
+### Escala nacional (ReefSYN)
+
+O Eixo 1 cobre a costa brasileira. São três fontes, tratadas como camadas
+distintas porque têm coberturas e categorias distintas — nunca são
+concatenadas numa série só:
+
+| camada | fonte | sítios | período |
+|---|---|---|---|
+| Peixes | ReefSYN, 8 datasets de transecto 40 m² | 232 | 2001–2023 |
+| Bentos (ilhas oceânicas) | ReefSYN XV (PELD-ILOC) | 12 | 2013–2019 |
+| Bentos (Noronha) | PELD-ILOC | 4 | 2021–2024 |
+
+Hierarquia: **Brasil → Região → Unidade de Conservação → Sítio**. 134 dos 232
+sítios de peixe caem em 24 UCs marinhas do CNUC.
+
+**A série de peixe é estratificada por região, nunca agregada.** O Rio de
+Janeiro é 44% dos censos e a única região presente de 2001 a 2005; as demais
+entram e saem. Uma linha nacional única mostraria geografia disfarçada de
+tendência, e o painel diz isso na tela.
+
+Geração: `build/extract_reefsyn.R` e `build/extract_reefsyn_benthos.R`, que
+rodam na máquina local (a fonte, `~/Área de trabalho/ReefSYN`, não está no
+cluster). Ambos travam se o resultado divergir da extração de referência.
 
 ### Leitura automática
 

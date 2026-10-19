@@ -55,7 +55,7 @@ export function initMap(el, _store, _core) {
   // Qualquer mudanca de filtro, modo ou variavel redesenha. No Shiny isso era
   // um observe() por entrada; aqui e uma assinatura so, porque o redesenho
   // completo custa alguns milissegundos sobre no maximo 30 marcadores.
-  store.on(['mode', 'variable', 'activeDatasets', 'level', 'zone', 'site', 'layer', 'lang'], render);
+  store.on(['mode', 'variable', 'activeDatasets', 'level', 'zone', 'uc', 'site', 'layer', 'lang', 'scope'], render);
 
   render();
   fitToData();
@@ -66,11 +66,19 @@ export function initMap(el, _store, _core) {
 // Filtro de sitios (hierarquia)
 // ---------------------------------------------------------------------------
 
+// A escala ativa decide de onde vem a lista de sitios. As duas tabelas tem a
+// mesma forma (ver national.js), entao daqui para baixo nada mais ramifica.
+const scopeSites = () =>
+  (store.get('scope') === 'national' && core.national) ? core.national.sites : core.sites;
+const scopeCoords = () =>
+  (store.get('scope') === 'national' && core.national) ? core.national.coords : core.site_coords;
+
 function filteredSites() {
-  const { level, zone, site, activeDatasets } = store.state;
-  let rows = core.sites;
+  const { level, zone, site, uc, activeDatasets } = store.state;
+  let rows = scopeSites();
 
   if (level === 'zone' && zone) rows = rows.filter((r) => r.zone === zone);
+  if (level === 'uc'   && uc)   rows = rows.filter((r) => (r.ucs ?? []).some((u) => u.nome === uc));
   if (level === 'site' && site) rows = rows.filter((r) => r.Site === site);
 
   // Um sitio so entra se tiver pelo menos um dos conjuntos ativos. A clausula
@@ -80,7 +88,7 @@ function filteredSites() {
 }
 
 const siteLabel = (code) =>
-  core.sites.find((s) => s.Site === code)?.site_label ?? code;
+  scopeSites().find((s) => s.Site === code)?.site_label ?? code;
 
 // ---------------------------------------------------------------------------
 // Desenho
@@ -102,7 +110,7 @@ function render() {
 function renderDatasets(onlyLegend = false) {
   const sites = filteredSites();
   const active = store.get('activeDatasets');
-  const coords = core.site_coords;
+  const coords = scopeCoords();
 
   if (!onlyLegend) for (const s of sites) {
     const here = coords.filter(
@@ -141,12 +149,12 @@ function renderDatasets(onlyLegend = false) {
 /** Modos de variavel: um marcador por sitio, na coordenada daquele conjunto. */
 function renderVariable(mode, onlyLegend = false) {
   const varName = store.get('variable');
-  const { values, unit } = siteValues(core, mode, varName);
+  const { values, unit } = siteValues(core, mode, varName, store.get('scope'));
   const domain = domainOf(values);
   const scale = colorScale(RAMP[mode] ?? RAMP.datasets, domain);
 
   const sites = filteredSites().filter((s) => s[`has_${mode}`]);
-  const coords = core.site_coords.filter((c) => c.dataset === mode);
+  const coords = scopeCoords().filter((c) => c.dataset === mode);
 
   if (!onlyLegend) for (const s of sites) {
     const c = coords.find((x) => x.Site === s.Site);
@@ -194,7 +202,9 @@ let geoCache = {};
 async function renderPolygons() {
   polyLayer.clearLayers();
   const layer = store.get('layer');
-  if (layer === 'none') return;
+  // Setores costeiros e regioes recifais foram construidos so para Noronha;
+  // na escala nacional nao ha equivalente e a camada fica indisponivel.
+  if (layer === 'none' || store.get('scope') === 'national') return;
 
   const name = layer === 'reef' ? 'reef_regions' : 'coastal_sectors';
   if (!geoCache[name]) geoCache[name] = await loadGeo(name);
@@ -205,7 +215,7 @@ async function renderPolygons() {
   const varName = store.get('variable');
   const isVar = mode !== 'datasets';
   const { values, unit } = isVar
-    ? siteValues(core, mode, varName)
+    ? siteValues(core, mode, varName, store.get('scope'))
     : { values: new Map(), unit: '' };
   const domain = domainOf(values);
   const scale = colorScale(RAMP[mode] ?? RAMP.datasets, domain);
@@ -316,11 +326,12 @@ function addLegendContinuous(label, [lo, hi], ramp, unit) {
  */
 export function fitToData() {
   const ativos = store.get('activeDatasets');
-  const pts = core.site_coords
+  const todas = scopeCoords();
+  const pts = todas
     .filter((c) => ativos.includes(c.dataset))
     .map((c) => [c.decimalLatitude, c.decimalLongitude]);
-  const base = pts.length ? pts : core.site_coords.map((c) => [c.decimalLatitude, c.decimalLongitude]);
-  if (base.length) map.fitBounds(L.latLngBounds(base), { padding: [60, 60], maxZoom: 14 });
+  const base = pts.length ? pts : todas.map((c) => [c.decimalLatitude, c.decimalLongitude]);
+  if (base.length) map.fitBounds(L.latLngBounds(base), { padding: [40, 40], maxZoom: 14 });
 }
 
 export function resizeMap() { map?.invalidateSize(); }
@@ -333,6 +344,6 @@ export function resizeMap() { map?.invalidateSize(); }
 export function redrawMap() { if (map) render(); }
 
 export function flyToSite(code) {
-  const c = core.site_coords.find((x) => x.Site === code);
+  const c = scopeCoords().find((x) => x.Site === code);
   if (c) map.flyTo([c.decimalLatitude, c.decimalLongitude], 15, { duration: 0.8 });
 }
