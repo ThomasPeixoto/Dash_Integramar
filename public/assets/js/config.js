@@ -96,16 +96,13 @@ export const CREDITS = {
     inst: { pt: 'Universidade Federal de Santa Catarina', en: 'Universidade Federal de Santa Catarina' },
     photo: 'sergio-r-floeter.webp',
     email: 'sergio.floeter@gmail.com',
-    link: null,
+    link: 'http://lattes.cnpq.br/1643200379939208',
   },
   productivity: {
     name: 'MSc. Tainá L. Gaspar',
     inst: { pt: 'Universidade Federal de Santa Catarina', en: 'Universidade Federal de Santa Catarina' },
     photo: 'taina-l-gaspar.webp',
-    // Endereço informado foi 'ainalgaspar@gmail.com'. Parece faltar o "t"
-    // inicial de "tainalgaspar"; como é o contato público de uma pessoa real,
-    // fica pendente de confirmação em vez de ir ao ar possivelmente errado.
-    email: null,
+    email: 'tainalgaspar@gmail.com',
     link: null,
   },
   pollution: {
@@ -113,7 +110,7 @@ export const CREDITS = {
     inst: { pt: 'Universidade Federal do Rio Grande do Norte', en: 'Universidade Federal do Rio Grande do Norte' },
     photo: 'cybelle-m-longhini.webp',
     email: 'belle.longhini@gmail.com',
-    link: null,
+    link: 'http://lattes.cnpq.br/9860249629296525',
   },
   fishers: {
     name: 'MSc. Maria Luiza Gallina',
