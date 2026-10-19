@@ -117,7 +117,14 @@ a:hover { text-decoration: underline; }
 }
 
 .appbar-end { margin-left: auto; display: flex; align-items: center; gap: 16px; }
-.appbar-end img { height: 28px; opacity: 0.9; }
+.appbar-end img {
+  height: 28px;
+  /* O arquivo do CNPq é escuro e sumia sobre a barra navy. brightness(0)
+     achata tudo em preto e invert(1) devolve branco puro, preservando o
+     recorte do desenho sem precisar de um segundo arquivo. */
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+}
 
 .lang {
   appearance: none;
@@ -425,7 +432,8 @@ select.input:focus, input.input:focus {
   font-family: var(--ff-display);
   font-size: 40px;
   font-weight: 700;
-  color: var(--coral);
+  /* Segue a cor do eixo ativo; o coral é só o padrão fora de um eixo. */
+  color: var(--eixo, var(--coral));
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -722,4 +730,57 @@ input.gridjs-input {
   .mapkit-bar { gap: 10px; padding: 10px 12px; }
   .mapkit-bar .field, .mapkit-bar .field--wide { min-width: 132px; flex: 1; }
   .metrics { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ===========================================================================
+   Responsáveis pelos dados
+   =========================================================================== */
+
+.credits { margin-top: 26px; }
+.credits-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.credits-row { display: flex; flex-wrap: wrap; gap: 26px; }
+
+.credit { display: flex; align-items: center; gap: 11px; }
+
+/* Anel na cor do eixo, como nos avatares da equipe do site institucional. */
+.credit-avatar {
+  display: block;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  padding: 2px;
+  background: var(--eixo, var(--coral));
+  flex: none;
+  transition: transform var(--t-fast) var(--ease);
+}
+a.credit-avatar:hover { transform: scale(1.06); }
+.credit-avatar img {
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 2px solid var(--surface-alt);
+  background: var(--offwhite);
+}
+
+.credit-text { display: flex; flex-direction: column; line-height: 1.32; }
+.credit-ds {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--eixo, var(--coral));
+}
+.credit-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.credit-inst { font-size: 11.5px; color: var(--muted); max-width: 30ch; }
+
+@media (max-width: 860px) {
+  .credits-row { gap: 16px; }
+  .credit-inst { display: none; }
 }

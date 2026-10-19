@@ -19,9 +19,12 @@ export const DATASETS = ['benthos', 'fish', 'fishers', 'pollution', 'productivit
 //
 // Os nomes dos coordenadores estao no site mas NAO aqui: a atribuicao de
 // autoria dos conjuntos ainda esta pendente e sera definida depois.
+// As cores vem do proprio site: cada cartao da equipe pinta o anel do avatar
+// com a cor do eixo da pessoa (--avatar-ring), e e de la que estao lidas.
+//   Eixo 1 #F76043 · Eixo 2 #982263 · Eixo 3 #353F7C · Eixo 4 #FDA749
 export const EIXOS = [
   {
-    id: 'eixo1', n: 1, color: '#3C9BA5',
+    id: 'eixo1', n: 1, color: '#F76043',
     short:  { pt: 'Biodiversidade',  en: 'Biodiversity' },
     title:  { pt: 'Biodiversidade, funcionamento e resiliência dos recifes',
               en: 'Reef biodiversity, functioning and resilience' },
@@ -45,7 +48,7 @@ export const EIXOS = [
     datasets: ['pollution'],
   },
   {
-    id: 'eixo3', n: 3, color: '#F76043',
+    id: 'eixo3', n: 3, color: '#353F7C',
     short:  { pt: 'Serviços',  en: 'Services' },
     title:  { pt: 'Serviços ecossistêmicos',
               en: 'Ecosystem services' },
@@ -57,7 +60,7 @@ export const EIXOS = [
     datasets: ['productivity', 'fishers'],
   },
   {
-    id: 'eixo4', n: 4, color: '#353F7C',
+    id: 'eixo4', n: 4, color: '#FDA749',
     short:  { pt: 'Gestão',  en: 'Management' },
     title:  { pt: 'Subsídios à gestão e ao manejo',
               en: 'Evidence for management' },
@@ -71,6 +74,47 @@ export const EIXOS = [
 ];
 
 export const eixoById = (id) => EIXOS.find((e) => e.id === id);
+
+// ---------------------------------------------------------------------------
+// Responsáveis pelos dados
+// ---------------------------------------------------------------------------
+//
+// Atribuição definida pelo Thomas; foto, instituição e link vêm da página de
+// equipe de integramar.org. O cargo que o site mostra não é repetido aqui: o
+// que esta ficha declara é a responsabilidade pelo CONJUNTO DE DADOS, que não
+// é a mesma coisa que o papel da pessoa na rede.
+export const CREDITS = {
+  benthos: {
+    name: 'Dr. Cesar M. M. Cordeiro',
+    inst: { pt: 'Universidade Estadual do Norte Fluminense', en: 'Universidade Estadual do Norte Fluminense' },
+    photo: 'cesar-m-m-cordeiro.webp',
+    link: 'https://lattes.cnpq.br/6383192984652602',
+  },
+  fish: {
+    name: 'Dr. Sergio R. Floeter',
+    inst: { pt: 'Universidade Federal de Santa Catarina', en: 'Universidade Federal de Santa Catarina' },
+    photo: 'sergio-r-floeter.webp',
+    link: null,
+  },
+  productivity: {
+    name: 'MSc. Tainá L. Gaspar',
+    inst: { pt: 'Universidade Federal de Santa Catarina', en: 'Universidade Federal de Santa Catarina' },
+    photo: 'taina-l-gaspar.webp',
+    link: null,
+  },
+  pollution: {
+    name: 'Drª. Cybelle M. Longhini',
+    inst: { pt: 'Universidade Federal do Rio Grande do Norte', en: 'Universidade Federal do Rio Grande do Norte' },
+    photo: 'cybelle-m-longhini.webp',
+    link: null,
+  },
+  fishers: {
+    name: 'MSc. Maria Luiza Gallina',
+    inst: { pt: 'Universidade Federal do Ceará', en: 'Universidade Federal do Ceará' },
+    photo: 'maria-luiza-gallina.webp',
+    link: null,
+  },
+};
 
 export const DS_COLOR = {
   benthos:      '#3C9BA5',
@@ -165,6 +209,8 @@ const STRINGS = {
     tab_stats: 'Composição', tab_data: 'Dados',
     brand_sub: 'Fernando de Noronha',
     panel_filters: 'Recorte e camadas',
+    credits: 'Responsáveis pelos dados',
+    credit_profile: 'Abrir perfil',
     q_e1_map: 'Onde a rede monitora, e o que cada sítio tem?',
     q_e1_time: 'Como as comunidades mudam ao longo do tempo?',
     q_e2_map: 'Onde estão as áreas mais vulneráveis à poluição?',
@@ -221,6 +267,8 @@ const STRINGS = {
     tab_stats: 'Composition', tab_data: 'Data',
     brand_sub: 'Fernando de Noronha',
     panel_filters: 'Scope and layers',
+    credits: 'Data stewards',
+    credit_profile: 'Open profile',
     q_e1_map: 'Where does the network monitor, and what does each site hold?',
     q_e1_time: 'How do communities change over time?',
     q_e2_map: 'Where are the areas most vulnerable to pollution?',

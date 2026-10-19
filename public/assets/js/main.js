@@ -20,7 +20,7 @@ import {
 } from './narrative.js';
 import {
   DATASETS, DS_COLOR, RAMP, MODE_VARS, SPATIAL_LAYERS, EIXOS, eixoById,
-  t, setLang, getLang, optLabel, varLabel,
+  t, setLang, getLang, optLabel, varLabel, CREDITS,
 } from './config.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -173,8 +173,41 @@ function renderEixoHeads() {
       <h2>${html}</h2>
       <p class="lede">${e.lede[lg] ?? e.lede.pt}</p>
       <div class="counters">${counters(e.id).map((c) =>
-        `<div class="counter"><div class="v">${c[0]}</div><div class="k">${c[1]}</div></div>`).join('')}</div>`;
+        `<div class="counter"><div class="v">${c[0]}</div><div class="k">${c[1]}</div></div>`).join('')}</div>
+      ${creditsHTML(e)}`;
   }
+}
+
+/**
+ * Ficha de quem responde por cada conjunto do eixo. O anel colorido em volta
+ * da foto repete o tratamento que o site institucional dá aos avatares da
+ * equipe, e carrega a cor do eixo.
+ */
+function creditsHTML(eixo) {
+  const lg = getLang();
+  const fichas = eixo.datasets
+    .map((ds) => [ds, CREDITS[ds]])
+    .filter(([, c]) => c)
+    .map(([ds, c]) => {
+      const foto = `<img src="assets/img/people/${c.photo}" alt="" loading="lazy" width="52" height="52">`;
+      const avatar = c.link
+        ? `<a class="credit-avatar" href="${c.link}" target="_blank" rel="noopener"
+             title="${t('credit_profile')}">${foto}</a>`
+        : `<span class="credit-avatar">${foto}</span>`;
+      return `<div class="credit">
+          ${avatar}
+          <div class="credit-text">
+            <span class="credit-ds">${t(`ds_${ds}`)}</span>
+            <span class="credit-name">${c.name}</span>
+            <span class="credit-inst">${c.inst[lg] ?? c.inst.pt}</span>
+          </div>
+        </div>`;
+    });
+  if (!fichas.length) return '';
+  return `<div class="credits">
+      <p class="credits-label">${t('credits')}</p>
+      <div class="credits-row">${fichas.join('')}</div>
+    </div>`;
 }
 
 function counters(id) {
