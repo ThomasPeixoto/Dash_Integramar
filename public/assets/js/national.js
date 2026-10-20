@@ -14,6 +14,26 @@
 
 import { uniq } from './data.js';
 
+/**
+ * Nomes de UC vêm do CNUC em CAIXA ALTA. Em caixa alta num mapa eles gritam e
+ * ficam mais largos que o polígono que rotulam.
+ */
+export function tituloUC(s) {
+  if (!s) return '';
+  const minusculas = new Set(['de','da','do','das','dos','e','em','a','o','as','os']);
+  // Siglas do SNUC continuam em caixa alta: "Apa Marinha" não é nome de nada.
+  const siglas = new Set(['APA','RESEX','REBIO','PARNA','ARIE','RDS','RPPN',
+                          'MONA','REVIS','FLONA','ESEC','PE','PN']);
+  return s.split(/\s+/)
+    .map((w, i) => {
+      const cru = w.replace(/[^\wÀ-ÿ]/g, '');
+      if (siglas.has(cru.toUpperCase()) && cru === cru.toUpperCase()) return w;
+      const b = w.toLowerCase();
+      return (i > 0 && minusculas.has(b)) ? b : b.charAt(0).toUpperCase() + b.slice(1);
+    })
+    .join(' ');
+}
+
 /** "arraial_do_cabo" -> "Arraial do Cabo" */
 function humanize(s) {
   if (!s) return '';
@@ -34,7 +54,8 @@ export function buildNational(core) {
   const ucBySite = new Map();
   for (const r of core.reef_site_uc ?? []) {
     if (!ucBySite.has(r.site_id)) ucBySite.set(r.site_id, []);
-    ucBySite.get(r.site_id).push({ cd: r.cd_cnuc, nome: r.nome_uc, cat: r.categoria, uf: r.uf });
+    ucBySite.get(r.site_id).push({ cd: r.cd_cnuc, nome: tituloUC(r.nome_uc),
+                                   nome_cru: r.nome_uc, cat: r.categoria, uf: r.uf });
   }
 
   const sites = [];
@@ -47,7 +68,12 @@ export function buildNational(core) {
       site_label: humanize(s.locality) || humanize(s.location) || s.site_id,
       location: humanize(s.location),
       zone: s.region, zone_label: s.region, region: s.region,
-      ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null, uf: ucs[0]?.uf ?? null,
+      ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null,
+      // `uf` é o código de duas letras do estado mais próximo, calculado no R.
+      // O `uf` que vem da UC é o nome por extenso do estado DELA e não serve
+      // de chave — sobrescrever um pelo outro já quebrou o filtro por estado.
+      uf: s.uf, uf_nome: s.uf_nome, dist_uf_km: s.dist_uf_km,
+      uc_uf: ucs[0]?.uf ?? null,
       has_fish: true, has_coral: false, has_benthos: false,
       n_censos: s.n_censos, ano_min: s.ano_min, ano_max: s.ano_max,
     });
@@ -69,7 +95,8 @@ export function buildNational(core) {
       site_label: humanize(b.locality) || b.site_id,
       location: humanize(b.locality),
       zone: b.region, zone_label: b.region, region: b.region,
-      ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null, uf: ucs[0]?.uf ?? null,
+      ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null,
+      uf: b.uf ?? null, uf_nome: b.uf_nome ?? null, uc_uf: ucs[0]?.uf ?? null,
       has_fish: false, has_coral: temCoral, has_benthos: temCom,
       datasets: b.datasets,
       n_censos: b.n_eventos, ano_min: b.ano_min, ano_max: b.ano_max,
@@ -94,10 +121,11 @@ export function buildNational(core) {
       Site: `N_${s.Site}`,
       site_label: s.site_label,
       location: 'Fernando de Noronha',
-      zone: regionOfLat(c.decimalLatitude), zone_label: regionOfLat(c.decimalLatitude),
-      region: regionOfLat(c.decimalLatitude),
+      // Noronha fica a ~350 km da costa: entra em "Ilhas oceânicas", como
+      // os demais sítios insulares, e não no litoral de Pernambuco.
+      zone: 'Ilhas oceânicas', zone_label: 'Ilhas oceânicas', region: 'Ilhas oceânicas',
       island: 'Fernando de Noronha', benthos_ds: 'Noronha',
-      ucs: [], uc_name: null, uc_cat: null, uf: null,
+      ucs: [], uc_name: null, uc_cat: null, uf: 'PE', uf_nome: 'Pernambuco',
       has_fish: false, has_coral: false, has_benthos: true,
       noronha_site: s.Site,
     });
@@ -113,31 +141,13 @@ export function buildNational(core) {
   };
 }
 
-/** Mesma régua de latitude do extract_reefsyn.R — as duas têm que concordar. */
-export function regionOfLat(lat) {
-  if (lat > -1)    return 'Ilhas equatoriais';
-  if (lat > -5.5)  return 'Noronha e Rocas';
-  if (lat > -10)   return 'Nordeste';
-  if (lat > -15)   return 'Bahia';
-  if (lat > -20)   return 'Abrolhos e ES';
-  if (lat > -24)   return 'Rio de Janeiro';
-  if (lat > -26)   return 'Sao Paulo';
-  return 'Sul';
-}
-
-/** Rótulos de exibição das regiões, na ordem norte -> sul. */
-export const REGION_ORDER = [
-  'Ilhas equatoriais', 'Noronha e Rocas', 'Nordeste', 'Bahia',
-  'Abrolhos e ES', 'Rio de Janeiro', 'Sao Paulo', 'Sul',
-];
+/** Ordem geográfica, norte -> sul, com as ilhas oceânicas por último. */
+export const REGION_ORDER = ['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Ilhas oceânicas'];
 
 export const REGION_LABEL = {
-  'Ilhas equatoriais': { pt: 'Ilhas equatoriais', en: 'Equatorial islands' },
-  'Noronha e Rocas':   { pt: 'Noronha e Rocas',   en: 'Noronha and Rocas' },
-  'Nordeste':          { pt: 'Nordeste',          en: 'Northeast' },
-  'Bahia':             { pt: 'Bahia',             en: 'Bahia' },
-  'Abrolhos e ES':     { pt: 'Abrolhos e ES',     en: 'Abrolhos and ES' },
-  'Rio de Janeiro':    { pt: 'Rio de Janeiro',    en: 'Rio de Janeiro' },
-  'Sao Paulo':         { pt: 'São Paulo',         en: 'São Paulo' },
-  'Sul':               { pt: 'Sul',               en: 'South' },
+  'Norte':           { pt: 'Norte',           en: 'North' },
+  'Nordeste':        { pt: 'Nordeste',        en: 'Northeast' },
+  'Sudeste':         { pt: 'Sudeste',         en: 'Southeast' },
+  'Sul':             { pt: 'Sul',             en: 'South' },
+  'Ilhas oceânicas': { pt: 'Ilhas oceânicas', en: 'Oceanic islands' },
 };

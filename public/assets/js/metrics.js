@@ -128,3 +128,35 @@ export function radiusOf(v, [lo, hi]) {
   if (!Number.isFinite(v)) return 5;
   return 6 + 16 * (v - lo) / Math.max(1, hi - lo);
 }
+
+
+// ---------------------------------------------------------------------------
+// Valores por ÁREA (estado, unidade de conservação)
+// ---------------------------------------------------------------------------
+
+/**
+ * No modo de generalização o valor não vive mais no ponto, e sim no polígono
+ * que o contém. Estes agregados vêm prontos do R porque **riqueza não é
+ * somável**: a riqueza de um estado é o número de espécies distintas entre os
+ * sítios dele, não a soma das riquezas de cada um.
+ *
+ * @param layer 'estados' | 'ucs'
+ * @returns {{ values: Map<chave, number>, unit: string, label: string }}
+ */
+export function areaValues(core, layer, mode, varName) {
+  const tabela = layer === 'estados' ? core.fish_by_uf : core.fish_by_uc;
+  const chave  = layer === 'estados' ? 'uf' : 'cd_cnuc';
+  const values = new Map();
+  if (!tabela?.length) return { values, unit: '', label: '' };
+
+  // Fora de um modo de variável não há métrica escolhida; o número de sítios
+  // é o que a área tem a dizer sobre si mesma.
+  const campo = mode === 'fish' ? varName : 'n_sites';
+  const unit = mode === 'fish' ? (UNITS.fish(varName) ?? '') : '';
+
+  for (const r of tabela) {
+    const v = r[campo];
+    values.set(r[chave], Number.isFinite(v) ? v : null);
+  }
+  return { values, unit, campo };
+}

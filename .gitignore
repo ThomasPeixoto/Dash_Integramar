@@ -8,3 +8,8 @@ public/data/tables/restricted/
 
 
 .DS_Store
+
+# Malha estadual do IBGE baixada por build/cache_estados.R (12 MB). E cache de
+# build, nao fonte: o script rebaixa. O site consome a versao simplificada em
+# public/data/geo/estados.geojson.
+data/estados_costeiros.gpkg

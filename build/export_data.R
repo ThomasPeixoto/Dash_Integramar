@@ -341,6 +341,14 @@ if (file.exists(rf)) {
   core$reef_site_uc    <- encode_table(as.data.frame(R$site_uc))
   core$reef_fish_year  <- encode_table(as.data.frame(R$fish_site_year))
   core$reef_fish_summary <- encode_table(as.data.frame(R$fish_summary))
+  # Agregados por area. Riqueza nao e somavel, entao vem prontos do R: sao o
+  # numero de especies DISTINTAS da area, nao a soma das riquezas dos sitios.
+  core$fish_by_uf <- encode_table(as.data.frame(R$fish_by_uf))
+  core$fish_by_uc <- encode_table(as.data.frame(R$fish_by_uc))
+  # Especies mais abundantes de cada area e de cada sitio, para o perfil.
+  core$fish_sp_by_uf   <- encode_table(as.data.frame(R$fish_sp_by_uf))
+  core$fish_sp_by_uc   <- encode_table(as.data.frame(R$fish_sp_by_uc))
+  core$fish_sp_by_site <- encode_table(as.data.frame(R$fish_sp_by_site))
   # fish_comp tem 10 mil linhas e so a aba temporal precisa dela. No core ela
   # levava o boot de 17 para 123 KB gzip; na camada sob demanda, o mapa abre
   # na mesma velocidade de antes.

@@ -3,8 +3,9 @@
 // ===========================================================================
 
 import { loadGeo, fmt, groupBy } from './data.js';
-import { siteValues, colorScale, domainOf, radiusOf } from './metrics.js';
+import { siteValues, areaValues, colorScale, domainOf, radiusOf } from './metrics.js';
 import { DS_COLOR, RAMP, t, varLabel } from './config.js';
+import { tituloUC } from './national.js';
 
 const CENTER = [-3.855, -32.42];
 const ZOOM = 13;
@@ -55,7 +56,7 @@ export function initMap(el, _store, _core) {
   // Qualquer mudanca de filtro, modo ou variavel redesenha. No Shiny isso era
   // um observe() por entrada; aqui e uma assinatura so, porque o redesenho
   // completo custa alguns milissegundos sobre no maximo 30 marcadores.
-  store.on(['mode', 'variable', 'activeDatasets', 'level', 'zone', 'uc', 'site', 'layer', 'lang', 'scope'], render);
+  store.on(['mode', 'variable', 'activeDatasets', 'level', 'zone', 'uf', 'uc', 'site', 'layer', 'lang', 'scope'], render);
 
   render();
   fitToData();
@@ -77,7 +78,9 @@ function filteredSites() {
   const { level, zone, site, uc, activeDatasets } = store.state;
   let rows = scopeSites();
 
+  const uf = store.get('uf');
   if (level === 'zone' && zone) rows = rows.filter((r) => r.zone === zone);
+  if (level === 'uf'   && uf)   rows = rows.filter((r) => r.uf === uf);
   if (level === 'uc'   && uc)   rows = rows.filter((r) => (r.ucs ?? []).some((u) => u.nome === uc));
   if (level === 'site' && site) rows = rows.filter((r) => r.Site === site);
 
@@ -198,18 +201,27 @@ function addMarker({ lat, lon, color, radius, site, dataset, tooltip }) {
 // ---------------------------------------------------------------------------
 
 let geoCache = {};
+// Geração do desenho de polígonos: o carregamento do GeoJSON é assíncrono, e
+// sem este token um segundo render iniciado durante o await adicionaria suas
+// camadas por cima das do primeiro.
+let geracaoPoly = 0;
 
-async function renderPolygons() {
+async function renderPolygons(geracao = ++geracaoPoly) {
   polyLayer.clearLayers();
   const layer = store.get('layer');
-  // Setores costeiros e regioes recifais foram construidos so para Noronha;
-  // na escala nacional nao ha equivalente e a camada fica indisponivel.
-  if (layer === 'none' || store.get('scope') === 'national') return;
+  if (layer === 'none') return;
+
+  // Na escala nacional os recortes sao administrativos (estado, UC) e o modo
+  // e de GENERALIZACAO: o valor deixa de viver no ponto e passa a viver no
+  // poligono que o contem. Os setores costeiros e as regioes recifais de
+  // Noronha nao tem equivalente aqui.
+  if (store.get('scope') === 'national') return renderAreas(layer, geracao);
 
   const name = layer === 'reef' ? 'reef_regions' : 'coastal_sectors';
   if (!geoCache[name]) geoCache[name] = await loadGeo(name);
-  // Entre o await e aqui o usuario pode ter trocado de camada.
-  if (store.get('layer') !== layer) return;
+  // Entre o await e aqui o usuario pode ter trocado de camada, ou outro
+  // render pode ter comecado.
+  if (store.get('layer') !== layer || geracao !== geracaoPoly) return;
 
   const mode = store.get('mode');
   const varName = store.get('variable');
@@ -260,6 +272,64 @@ async function renderPolygons() {
       lyr.on('mouseout',  () => lyr.setStyle({ weight: 1.4, fillOpacity: 0.3 }));
     },
   }).addTo(polyLayer);
+}
+
+/**
+ * Choropleth por area. Cada poligono recebe a cor do agregado daquela area,
+ * e o clique filtra o painel inteiro para ela.
+ */
+async function renderAreas(layer, geracao) {
+  const nome = layer === 'estados' ? 'estados' : 'ucs';
+  if (!geoCache[nome]) geoCache[nome] = await loadGeo(nome);
+  // Troca de camada ou outro render durante o await: este resultado e velho.
+  if (store.get('layer') !== layer || geracao !== geracaoPoly) return;
+
+  const mode = store.get('mode');
+  const varName = store.get('variable');
+  const { values, unit, campo } = areaValues(core, nome, mode, varName);
+  const domain = domainOf(values);
+  const scale = colorScale(RAMP[mode] ?? RAMP.datasets, domain);
+  const chave = nome === 'estados' ? 'uf' : 'cd_cnuc';
+  const rotuloDe = (p) => nome === 'estados' ? tituloUC(p.uf_nome ?? p.uf) : tituloUC(p.nome_uc);
+
+  L.geoJSON(geoCache[nome], {
+    style: (f) => {
+      const v = values.get(f.properties[chave]);
+      const temDado = Number.isFinite(v);
+      return {
+        color: temDado ? '#ffffff' : '#B9C2D4',
+        weight: temDado ? 1.2 : 0.8,
+        opacity: temDado ? 0.9 : 0.5,
+        fillColor: temDado ? scale(v) : '#E8ECF4',
+        // Area sem dado fica quase transparente: o mapa mostra que ela
+        // existe, sem sugerir valor zero.
+        fillOpacity: temDado ? 0.78 : 0.25,
+      };
+    },
+    onEachFeature: (f, lyr) => {
+      const p = f.properties;
+      const k = p[chave];
+      const v = values.get(k);
+      const label = rotuloDe(p);
+      lyr.bindTooltip(
+        Number.isFinite(v)
+          ? `<b>${label}</b><span>${varLabel(mode, campo)}: <i>${fmt(v, 1)}${unit}</i></span>`
+          : `<b>${label}</b><span>${t('no_data')}</span>`,
+        { sticky: true, className: 'map-tip' }
+      );
+      lyr.on('click', () => {
+        if (!Number.isFinite(v)) return;
+        store.set(nome === 'estados'
+          ? { level: 'uf', uf: k, zone: null, uc: null, site: null }
+          : { level: 'uc', uc: tituloUC(p.nome_uc), zone: null, uf: null, site: null });
+      });
+      lyr.on('mouseover', () => lyr.setStyle({ weight: 2.4, fillOpacity: 0.9 }));
+      lyr.on('mouseout',  () => lyr.setStyle({ weight: Number.isFinite(v) ? 1.2 : 0.8,
+                                               fillOpacity: Number.isFinite(v) ? 0.78 : 0.25 }));
+    },
+  }).addTo(polyLayer);
+
+  addLegendContinuous(varLabel(mode, campo), domain, RAMP[mode] ?? RAMP.datasets, unit);
 }
 
 // ---------------------------------------------------------------------------

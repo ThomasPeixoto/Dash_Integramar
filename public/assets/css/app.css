@@ -799,3 +799,20 @@ a.credit-avatar:hover { transform: scale(1.06); }
   /* O e-mail sobrevive ao aperto; a instituição não. */
   .credit-mail { margin-top: 1px; }
 }
+
+/* Espécie sem foto no acervo: bloco neutro com a inicial do gênero, no lugar
+   de um card com buraco. O acervo veio de Noronha e cobre 35-45% das
+   espécies mais abundantes da costa. */
+.sp-sem-foto {
+  height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--ff-display);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--line-strong);
+  user-select: none;
+}

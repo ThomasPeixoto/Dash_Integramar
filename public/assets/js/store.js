@@ -12,11 +12,17 @@ export function createStore(initial) {
   const subs = new Map();   // chave -> Set<fn>
   const anySubs = new Set();
 
+  // Um mesmo ouvinte registrado em várias chaves é chamado UMA vez por lote,
+  // não uma vez por chave. Sem isso, `set({ level, layer })` disparava o
+  // redesenho do mapa duas vezes e, como ele tem um await no meio, as duas
+  // execuções passavam da limpeza e desenhavam os polígonos em dobro.
   function notify(keys) {
+    const chamar = new Set();
     for (const k of keys) {
       const s = subs.get(k);
-      if (s) for (const fn of s) fn(state[k], state);
+      if (s) for (const fn of s) chamar.add(fn);
     }
+    for (const fn of chamar) fn(state[keys[0]], state);
     for (const fn of anySubs) fn(state, keys);
   }
 

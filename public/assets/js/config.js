@@ -222,6 +222,14 @@ export const MODE_VARS = {
   },
 };
 
+// Recortes do modo de GENERALIZAÇÃO na escala nacional: ao ligar um deles os
+// pontos somem e o valor passa a viver no polígono que os contém.
+export const NATIONAL_LAYERS = [
+  { v: 'none',    pt: 'Nenhum (pontos por sítio)', en: 'None (points per site)' },
+  { v: 'estados', pt: 'Por estado',                en: 'By state' },
+  { v: 'ucs',     pt: 'Por unidade de conservação', en: 'By protected area' },
+];
+
 export const SPATIAL_LAYERS = [
   { v: 'none', pt: 'Nenhuma (apenas pontos)',          en: 'None (points only)' },
   { v: 'reef', pt: 'Recife mapeado (Allen Coral Atlas)', en: 'Mapped reef (Allen Coral Atlas)' },
@@ -273,6 +281,7 @@ const STRINGS = {
     f_var_pollution: 'Parâmetro', f_var_productivity: 'Parâmetro Metabólico',
     lvl_archipelago: 'Arquipélago', lvl_zone: 'Zona', lvl_site: 'Sítio',
     lvl_brasil: 'Brasil', lvl_region: 'Região', lvl_uc: 'Unidade de Conservação',
+    lvl_uf: 'Estado', all_ufs: 'Todos os estados', f_generalize: 'Generalizar por',
     all_ucs: 'Todas as UCs', all_regions: 'Todas as regiões',
     mode_datasets: 'Conjuntos de dados', mode_benthos: 'Cobertura bentônica',
     mode_fish: 'Peixes recifais', mode_pollution: 'Poluição',
@@ -282,7 +291,7 @@ const STRINGS = {
     ds_pollution: 'Poluição', ds_productivity: 'Produtividade',
     m_sites: 'Sítios', m_datasets: 'Conjuntos', m_records: 'Registros',
     m_species: 'Espécies', m_years: 'Anos',
-    profile: 'Perfil do sítio', no_site: 'Selecione um ponto no mapa',
+    profile: 'Perfil do sítio', profile_area: 'Perfil da área', no_site: 'Selecione um ponto no mapa',
     available: 'Dados disponíveis', top_species: 'Espécies mais abundantes',
     individuals: 'Indivíduos', censuses: 'Censos', quadrats: 'Fotoquadrantes',
     families: 'Famílias',
@@ -334,6 +343,7 @@ const STRINGS = {
     f_var_pollution: 'Parameter', f_var_productivity: 'Flux Parameter',
     lvl_archipelago: 'Archipelago', lvl_zone: 'Zone', lvl_site: 'Site',
     lvl_brasil: 'Brazil', lvl_region: 'Region', lvl_uc: 'Protected area',
+    lvl_uf: 'State', all_ufs: 'All states', f_generalize: 'Generalise by',
     all_ucs: 'All protected areas', all_regions: 'All regions',
     mode_datasets: 'Datasets', mode_benthos: 'Benthic cover',
     mode_fish: 'Reef fish', mode_pollution: 'Pollution',
@@ -343,7 +353,7 @@ const STRINGS = {
     ds_pollution: 'Pollution', ds_productivity: 'Productivity',
     m_sites: 'Sites', m_datasets: 'Datasets', m_records: 'Records',
     m_species: 'Species', m_years: 'Years',
-    profile: 'Site profile', no_site: 'Select a point on the map',
+    profile: 'Site profile', profile_area: 'Area profile', no_site: 'Select a point on the map',
     available: 'Available data', top_species: 'Most abundant species',
     individuals: 'Individuals', censuses: 'Censuses', quadrats: 'Photoquadrats',
     families: 'Families',
@@ -365,7 +375,15 @@ export const t = (k) => STRINGS[LANG][k] ?? STRINGS.pt[k] ?? k;
 /** Rotulo de uma opcao { v, pt, en } no idioma ativo. */
 export const optLabel = (o) => o[LANG] ?? o.pt;
 
+// Campos que só existem na visão por área: fora de um modo de variável o
+// polígono mostra quantos sítios tem, e esse campo não está em MODE_VARS.
+const AREA_FIELDS = {
+  n_sites:  { pt: 'Sítios amostrados',  en: 'Sampled sites' },
+  n_events: { pt: 'Censos realizados',  en: 'Censuses' },
+};
+
 export function varLabel(mode, value) {
+  if (AREA_FIELDS[value] && !MODE_VARS[mode]) return optLabel(AREA_FIELDS[value]);
   const spec = MODE_VARS[mode];
   if (!spec) return value;
   const o = spec.options.find((x) => x.v === value);

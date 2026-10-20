@@ -14,10 +14,14 @@
 // ===========================================================================
 
 import { groupBy, sum, mean, uniq, fmt, fmtInt } from './data.js';
-import { siteValues } from './metrics.js';
+import { siteValues, areaValues } from './metrics.js';
 import { t, getLang, varLabel } from './config.js';
+import { tituloUC } from './national.js';
 
 const b = (x) => `<strong>${x}</strong>`;
+
+/** Plural simples: plural(1,'ano') -> "1 ano"; plural(3,'ano') -> "3 anos". */
+const plural = (n, sing, plur) => `${fmtInt(n)} ${n === 1 ? sing : (plur ?? sing + 's')}`;
 const pt = () => getLang() === 'pt';
 
 /** Lista legível: "a, b e c" / "a, b and c". */
@@ -38,6 +42,13 @@ const siteName = (core, code) =>
 // ---------------------------------------------------------------------------
 
 export function readE1Map(core, state, sites) {
+  // Modo de generalização: o valor vive no polígono, então a leitura tem que
+  // falar de áreas. Descrever o intervalo entre SÍTIOS enquanto o mapa pinta
+  // ESTADOS seria descrever outra figura.
+  if (state.scope === 'national' && state.layer && state.layer !== 'none') {
+    return readE1Area(core, state);
+  }
+
   const n = sites.length;
   if (!n) return pt() ? 'Nenhum sítio atende ao recorte atual.' : 'No site matches the current selection.';
 
@@ -299,8 +310,8 @@ export function readE1Nacional(rows, rotulo = (g) => g) {
     const m = cobertura[0];
     const porCenso = sum(rows.map((r) => r.total)) / Math.max(1, m.n);
     return pt()
-      ? `${b(rotulo(m.g))}: ${b(fmtInt(m.n))} censos em ${b(m.anos)} anos (${m.ini}–${m.fim}), com média de ${b(fmtInt(porCenso))} indivíduos por censo.`
-      : `${b(rotulo(m.g))}: ${b(fmtInt(m.n))} censuses over ${b(m.anos)} years (${m.ini}–${m.fim}), averaging ${b(fmtInt(porCenso))} individuals per census.`;
+      ? `${b(rotulo(m.g))}: ${b(plural(m.n, 'censo'))} em ${b(plural(m.anos, 'ano'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, com média de ${b(fmtInt(porCenso))} indivíduos por censo.`
+      : `${b(rotulo(m.g))}: ${b(plural(m.n, 'census', 'censuses'))} over ${b(plural(m.anos, 'year'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, averaging ${b(fmtInt(porCenso))} individuals per census.`;
   }
 
   return pt()
@@ -387,4 +398,42 @@ export function readE1Comunidade(core, rows, dsAtivo) {
     ? `Dataset ${b(dsAtivo)}: ${b(sitios)} sítios, ${b(anos[0])}–${b(ultimo)}. Em ${ultimo}, o grupo mais abundante é ${b(vivos[0]?.[0] ?? '—')}, com ${b(fmt(vivos[0]?.[1] ?? 0, 1) + '%')}.`
     : `Dataset ${b(dsAtivo)}: ${b(sitios)} sites, ${b(anos[0])}–${b(ultimo)}. In ${ultimo} the most abundant group is ${b(vivos[0]?.[0] ?? '—')}, at ${b(fmt(vivos[0]?.[1] ?? 0, 1) + '%')}.`)
     + extra;
+}
+
+
+/** Leitura do mapa no modo de generalização (choropleth por área). */
+function readE1Area(core, state) {
+  const porEstado = state.layer === 'estados';
+  const { values, unit, campo } = areaValues(core, state.layer, state.mode, state.variable);
+  const comDado = [...values.entries()].filter(([, v]) => Number.isFinite(v));
+  if (!comDado.length) {
+    return pt() ? 'Nenhuma área tem dado para esta métrica.' : 'No area has data for this metric.';
+  }
+
+  const tabela = porEstado ? core.fish_by_uf : core.fish_by_uc;
+  const nomeDe = (k) => {
+    const r = (tabela ?? []).find((x) => (porEstado ? x.uf : x.cd_cnuc) === k);
+    return tituloUC((porEstado ? r?.uf_nome : r?.nome_uc) ?? k);
+  };
+
+  comDado.sort((a, c) => c[1] - a[1]);
+  const [altoK, alto] = comDado[0];
+  const [baixoK, baixo] = comDado[comDado.length - 1];
+  const rotulo = varLabel(state.mode, campo);
+  const tipo = porEstado
+    ? (pt() ? 'estados' : 'states')
+    : (pt() ? 'unidades de conservação' : 'protected areas');
+
+  // Riqueza por área não é a soma das riquezas dos sítios: é o número de
+  // espécies distintas ali. A frase diz isso porque a diferença é grande e
+  // não óbvia.
+  const nota = campo === 'richness'
+    ? (pt() ? ' Riqueza aqui é o número de espécies distintas na área, não a soma das riquezas dos sítios.'
+            : ' Richness here is the number of distinct species in the area, not the sum of its sites\u2019 richness.')
+    : '';
+
+  return (pt()
+    ? `${b(rotulo)} em ${b(comDado.length)} ${tipo}: de ${b(fmt(baixo, 0) + unit)} em ${nomeDe(baixoK)} a ${b(fmt(alto, 0) + unit)} em ${b(nomeDe(altoK))}. Clique numa área para recortar o painel por ela.`
+    : `${b(rotulo)} across ${b(comDado.length)} ${tipo}: from ${b(fmt(baixo, 0) + unit)} in ${nomeDe(baixoK)} to ${b(fmt(alto, 0) + unit)} in ${b(nomeDe(altoK))}. Click an area to filter the panel by it.`)
+    + nota;
 }

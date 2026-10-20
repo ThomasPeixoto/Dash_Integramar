@@ -11,7 +11,8 @@
 set -euo pipefail
 
 PORT="${1:-8899}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/public"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(dirname "$SCRIPT_DIR")/public"
 PIDFILE="/tmp/integramar-site-${PORT}.pid"
 
 # Mata apenas o processo registrado neste pidfile. Nunca `pkill -f python3`:
@@ -23,7 +24,10 @@ if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
 fi
 
 cd "$ROOT"
-setsid nohup python3 -m http.server "$PORT" --bind 0.0.0.0 \
+# devserver.py em vez de `python3 -m http.server`: manda Cache-Control:
+# no-store. Sem isso o navegador guarda os módulos ES e continua servindo a
+# versão anterior depois de uma edição -- já testei código velho assim.
+setsid nohup python3 "$SCRIPT_DIR/devserver.py" "$PORT" 0.0.0.0 \
   > "/tmp/integramar-site-${PORT}.log" 2>&1 &
 echo $! > "$PIDFILE"
 sleep 1

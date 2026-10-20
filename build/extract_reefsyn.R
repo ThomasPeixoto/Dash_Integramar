@@ -150,18 +150,6 @@ sitios <- censos[, .(
 setorder(sitios, -lat, lon)
 sitios[, site_id := sprintf("R%03d", .I)]
 
-# Regiao por latitude. E a estratificacao que a serie temporal exige: a
-# composicao geografica do "Brasil" muda a cada ano (o Rio e 44% dos censos e
-# a unica regiao presente de 2001 a 2005), entao serie nacional agregada
-# mostraria geografia disfarcada de tendencia.
-sitios[, region := fifelse(lat > -1,    "Ilhas equatoriais",
-                   fifelse(lat > -5.5,  "Noronha e Rocas",
-                   fifelse(lat > -10,   "Nordeste",
-                   fifelse(lat > -15,   "Bahia",
-                   fifelse(lat > -20,   "Abrolhos e ES",
-                   fifelse(lat > -24,   "Rio de Janeiro",
-                   fifelse(lat > -26,   "Sao Paulo", "Sul")))))))]
-
 censos <- merge(censos, sitios[, .(lon, lat, site_id)], by = c("lon", "lat"))
 
 uc <- st_read(file.path(REEF_DIR, "_gis", "shp_cnuc_2025_08", "cnuc_2025_08.shp"), quiet = TRUE)
@@ -174,6 +162,55 @@ su  <- as.data.table(st_drop_geometry(st_join(pts, uc, join = st_within)))[!is.n
 site_uc <- su[, .(site_id, cd_cnuc, nome_uc, categoria, uf)]
 msg("sitios: %d, em %d UCs marinhas (%d sitios dentro de alguma)",
     nrow(sitios), uniqueN(site_uc$cd_cnuc), uniqueN(site_uc$site_id))
+
+## ---- 3b. Estado (UF) de cada sitio ------------------------------------------
+## Os sitios sao marinhos, entao nenhum cai DENTRO de um poligono estadual:
+## usamos o estado mais proximo. Para as ilhas oceanicas isso reproduz a
+## filiacao administrativa (Noronha/SPSP em PE, Rocas em RN, Trindade no ES),
+## mas elas sao ecologicamente distintas do litoral do mesmo estado -- o
+## painel marca isso.
+
+## Malha estadual: lida de data/estados_costeiros.gpkg, gravado uma vez por
+## build/cache_estados.R. Chamar geobr::read_state() em cada script corrompia
+## o cache dele quando dois rodavam perto um do outro.
+le_estados <- function() {
+  caminho <- "data/estados_costeiros.gpkg"
+  if (!file.exists(caminho)) {
+    stop("falta ", caminho, " — rode: Rscript build/cache_estados.R")
+  }
+  sf::st_read(caminho, quiet = TRUE)
+}
+
+ufs <- le_estados()
+pts_uf <- st_as_sf(sitios, coords = c("lon", "lat"), crs = 4326, remove = FALSE)
+idx <- sf::st_nearest_feature(pts_uf, ufs)
+sitios[, `:=`(uf = ufs$uf[idx], uf_nome = ufs$uf_nome[idx])]
+# Distancia ate a costa: so para saber quao longe a atribuicao foi feita.
+sitios[, dist_uf_km := round(as.numeric(
+  sf::st_distance(pts_uf, ufs[idx, ], by_element = TRUE)) / 1000, 1)]
+msg("estados: %d UFs atribuidas (mediana %.1f km da costa, max %.0f km)",
+    uniqueN(sitios$uf), median(sitios$dist_uf_km), max(sitios$dist_uf_km))
+
+# Regiao: macrorregiao do IBGE a partir do estado, mais uma categoria propria
+# para as ilhas oceanicas. As faixas de latitude que eu usava antes produziam
+# "regioes" como "Sao Paulo" e "Bahia", que nao sao regioes de nada -- eram
+# recortes arbitrarios com nome de estado.
+#
+# As ilhas oceanicas saem separadas porque administrativamente pertencem a PE,
+# RN e ES mas estao a centenas de quilometros da costa e tem comunidades
+# distintas: some-las ao litoral do mesmo estado misturaria coisas diferentes.
+# O corte e por distancia ate a costa, nao por latitude.
+IBGE <- c(AP="Norte", PA="Norte",
+          MA="Nordeste", PI="Nordeste", CE="Nordeste", RN="Nordeste",
+          PB="Nordeste", PE="Nordeste", AL="Nordeste", SE="Nordeste", BA="Nordeste",
+          ES="Sudeste", RJ="Sudeste", SP="Sudeste",
+          PR="Sul", SC="Sul", RS="Sul")
+LIMITE_OCEANICA_KM <- 100
+sitios[, region := fifelse(dist_uf_km > LIMITE_OCEANICA_KM,
+                           "Ilhas oceânicas", unname(IBGE[uf]))]
+msg("regioes: %s", paste(sprintf("%s=%d", names(table(sitios$region)),
+                                 as.integer(table(sitios$region))), collapse = "  "))
+
 
 ## ---- 4. Agregados ------------------------------------------------------------
 occ <- merge(occ, censos[, .(ds, eventID, site_id, year)], by = c("ds", "eventID"))
@@ -208,6 +245,73 @@ fish_year_sp <- occ[sp %in% top_sp, .(total_abundance = sum(ab)),
                     by = .(site_id, year, species = sp)]
 fish_year_sp <- merge(fish_year_sp, esforco, by = c("site_id", "year"))
 
+## ---- 4b. Agregados por AREA (estado e UC) -----------------------------------
+## Riqueza NAO e somavel: a riqueza de um estado e o numero de especies
+## DISTINTAS entre os sitios dele, nao a soma das riquezas de cada sitio.
+## Por isso estes agregados saem daqui, das ocorrencias, e nao de uma conta
+## feita no navegador sobre a tabela por sitio.
+occ_area <- merge(occ, sitios[, .(site_id, uf)], by = "site_id")
+
+por_area <- function(dados, chave) {
+  esforco <- merge(censos[, .(site_id, eventID)], sitios[, .(site_id, uf)], by = "site_id")
+  esforco <- if (chave == "uf") esforco[, .(n_events = .N, n_sites = uniqueN(site_id)), by = uf]
+             else NULL
+  a <- dados[, .(richness = uniqueN(sp),
+                 n_families = uniqueN(fam[!is.na(fam) & fam != ""]),
+                 total_abundance = sum(ab)), by = c(chave)]
+  if (!is.null(esforco)) a <- merge(a, esforco, by = chave)
+  a[, mean_abundance := total_abundance / n_events]
+  a[]
+}
+
+fish_by_uf <- por_area(occ_area, "uf")
+fish_by_uf <- merge(fish_by_uf, unique(sitios[, .(uf, uf_nome)]), by = "uf")
+
+# Um sitio pode cair em mais de uma UC (APA grande com parque dentro), entao a
+# juncao e intencionalmente de um-para-muitos: o mesmo censo conta para as
+# duas UCs que o contem, que e a leitura correta de "o que ha nesta UC".
+occ_uc <- merge(occ, site_uc[, .(site_id, cd_cnuc, nome_uc)],
+                by = "site_id", allow.cartesian = TRUE)
+esf_uc <- merge(censos[, .(site_id, eventID)], site_uc[, .(site_id, cd_cnuc)],
+                by = "site_id", allow.cartesian = TRUE)[
+                , .(n_events = .N, n_sites = uniqueN(site_id)), by = cd_cnuc]
+fish_by_uc <- occ_uc[, .(richness = uniqueN(sp),
+                         n_families = uniqueN(fam[!is.na(fam) & fam != ""]),
+                         total_abundance = sum(ab)), by = .(cd_cnuc, nome_uc)]
+fish_by_uc <- merge(fish_by_uc, esf_uc, by = "cd_cnuc")
+fish_by_uc[, mean_abundance := total_abundance / n_events]
+
+# Especies mais abundantes de cada area, para o perfil. 12 por area: o painel
+# mostra 4 com foto e lista o resto.
+TOP_POR_AREA <- 12
+sp_uf <- occ_area[, .(abundance = sum(ab), n_sites = uniqueN(site_id)),
+                  by = .(uf, species = sp, family = fam)]
+sp_uf[, pct := 100 * abundance / sum(abundance), by = uf]
+setorder(sp_uf, uf, -abundance)
+fish_sp_by_uf <- sp_uf[, head(.SD, TOP_POR_AREA), by = uf]
+
+sp_uc <- occ_uc[, .(abundance = sum(ab), n_sites = uniqueN(site_id)),
+                by = .(cd_cnuc, species = sp, family = fam)]
+sp_uc[, pct := 100 * abundance / sum(abundance), by = cd_cnuc]
+setorder(sp_uc, cd_cnuc, -abundance)
+fish_sp_by_uc <- sp_uc[, head(.SD, TOP_POR_AREA), by = cd_cnuc]
+
+# E por sitio, para o perfil de sitio na escala nacional.
+sp_site <- occ[, .(abundance = sum(ab)), by = .(site_id, species = sp, family = fam)]
+setorder(sp_site, site_id, -abundance)
+fish_sp_by_site <- sp_site[, head(.SD, 6), by = site_id]
+
+msg("por area: %d estados, %d UCs | especies: %d por estado, %d por UC, %d por sitio",
+    nrow(fish_by_uf), nrow(fish_by_uc),
+    nrow(fish_sp_by_uf), nrow(fish_sp_by_uc), nrow(fish_sp_by_site))
+
+stopifnot(
+  "riqueza por estado maior que a riqueza total" =
+    max(fish_by_uf$richness) <= uniqueN(occ$sp),
+  "esforco por estado nao bate com o total" =
+    sum(fish_by_uf$n_events) == nrow(censos)
+)
+
 ## ---- 5. Conferencias ---------------------------------------------------------
 # A extracao de referencia (relatorio/01_extrair_dados_especies.R, verificada
 # censo a censo em 23-24/09) chegou a 10.686 censos e 232 sitios. Divergir
@@ -223,7 +327,12 @@ stopifnot(
 
 saveRDS(list(
   sites        = sitios[, .(site_id, lon, lat, location, locality, region,
-                            n_censos, ano_min, ano_max)],
+                            uf, uf_nome, dist_uf_km, n_censos, ano_min, ano_max)],
+  fish_by_uf   = fish_by_uf,
+  fish_by_uc   = fish_by_uc,
+  fish_sp_by_uf   = fish_sp_by_uf,
+  fish_sp_by_uc   = fish_sp_by_uc,
+  fish_sp_by_site = fish_sp_by_site,
   site_uc      = site_uc,
   fish_site_year = fish_site_year,
   fish_summary   = fish_summary,

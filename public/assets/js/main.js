@@ -9,7 +9,10 @@
 
 import { loadCore, fmtInt, fmt, uniq, sum, mean, groupBy, topN } from './data.js';
 import { createStore } from './store.js';
-import { buildNational, REGION_LABEL, REGION_ORDER } from './national.js';
+import { buildNational, REGION_LABEL, REGION_ORDER, tituloUC } from './national.js';
+
+/** geobr devolve "Rio Grande Do Norte"; as partículas vão em minúscula. */
+const tituloUF = (s) => tituloUC(s ?? '');
 import { initMap, resizeMap, redrawMap, fitToData, setLegendSlot } from './map.js';
 import {
   groupSeries, taxonSeries, trendOption, taxonOption, heatmapOption,
@@ -20,7 +23,8 @@ import {
   readE4Fish, readE4Pollution, readE4Absent, zoneFish, zonePollution,
 } from './narrative.js';
 import {
-  DATASETS, NATIONAL_DATASETS, BENTHOS_SOURCES, DS_COLOR, RAMP, MODE_VARS, SPATIAL_LAYERS, EIXOS, eixoById,
+  DATASETS, NATIONAL_DATASETS, BENTHOS_SOURCES, DS_COLOR, RAMP, MODE_VARS,
+  SPATIAL_LAYERS, NATIONAL_LAYERS, EIXOS, eixoById,
   t, setLang, getLang, optLabel, varLabel, CREDITS,
 } from './config.js';
 
@@ -70,7 +74,7 @@ const regionLabel = (r) => REGION_LABEL[r]?.[getLang()] ?? r;
 
   store = createStore({
     eixo: 'eixo1',
-    scope: 'national', uc: null,
+    scope: 'national', uc: null, uf: null,
     lang: 'pt',
     level: 'archipelago', zone: null, site: null,
     mode: 'datasets', variable: null, layer: 'none',
@@ -90,11 +94,12 @@ const regionLabel = (r) => REGION_LABEL[r]?.[getLang()] ?? r;
 
   initMap($('#map'), store, core);
 
-  store.on(['mode', 'variable', 'level', 'zone', 'site', 'activeDatasets', 'layer'], () => {
+  store.on(['mode', 'variable', 'level', 'zone', 'uf', 'uc', 'site', 'activeDatasets', 'layer'], () => {
     renderReadings();
   });
-  store.on('selectedSite', renderProfile);
-  store.on(['tDataset', 'tType', 'tBenthosDs'], renderTemporal);
+  store.on(['level', 'zone', 'uf', 'uc', 'site', 'layer'], syncControlValues);
+  store.on(['selectedSite', 'level', 'zone', 'uf', 'uc'], renderProfile);
+  store.on(['tDataset', 'tType', 'tBenthosDs', 'level', 'zone', 'uf', 'uc', 'site'], renderTemporal);
 
   showEixo('eixo1');
   $('#boot').setAttribute('data-done', '');
@@ -137,7 +142,7 @@ function showEixo(id) {
       scope: cfg.scope ?? 'noronha',
       activeDatasets: cfg.datasets.filter((ds) => ds !== 'benthos_islands' || core.national),
       selectedSite: null,
-      level: 'archipelago', zone: null, uc: null, site: null,
+      level: 'archipelago', zone: null, uc: null, uf: null, site: null,
     });
     buildMapBar(id, cfg);
     $(`#${cfg.slot}`).appendChild(kit);
@@ -301,7 +306,11 @@ function buildMapBar(id, cfg) {
       <label for="f-zone">${nac ? t('lvl_region') : t('lvl_zone')}</label>
       <select class="input" id="f-zone"></select>
     </div>
-    ${nac ? `<div class="field field--wide" id="f-uc-wrap" hidden>
+    ${nac ? `<div class="field" id="f-uf-wrap" hidden>
+      <label for="f-uf">${t('lvl_uf')}</label>
+      <select class="input" id="f-uf"></select>
+    </div>
+    <div class="field field--wide" id="f-uc-wrap" hidden>
       <label for="f-uc">${t('lvl_uc')}</label>
       <select class="input" id="f-uc"></select>
     </div>` : ''}
@@ -317,10 +326,10 @@ function buildMapBar(id, cfg) {
       <label for="f-var" id="f-var-label">${spec ? t(`f_var_${mode}`) : ''}</label>
       <select class="input" id="f-var"></select>
     </div>
-    ${nac ? '' : `<div class="field field--wide">
-      <label for="f-layer">${t('f_layer')}</label>
+    <div class="field field--wide">
+      <label for="f-layer">${nac ? t('f_generalize') : t('f_layer')}</label>
       <select class="input" id="f-layer"></select>
-    </div>`}
+    </div>
     ${cfg.datasets.length > 1 ? `<div class="field field--chips">
       <label>${t('f_datasets')}</label>
       <div class="chips" id="f-datasets"></div>
@@ -330,6 +339,7 @@ function buildMapBar(id, cfg) {
   const niveis = nac
     ? [{ v: 'archipelago', label: t('lvl_brasil') },
        { v: 'zone',        label: t('lvl_region') },
+       { v: 'uf',          label: t('lvl_uf') },
        { v: 'uc',          label: t('lvl_uc') },
        { v: 'site',        label: t('lvl_site') }]
     : [{ v: 'archipelago', label: t('lvl_archipelago') },
@@ -337,7 +347,12 @@ function buildMapBar(id, cfg) {
        { v: 'site',        label: t('lvl_site') }];
   fillSelect($('#f-level'), niveis, store.get('level'));
   $('#f-level').onchange = (e) => {
-    store.set({ level: e.target.value, zone: null, uc: null, site: null });
+    const lvl = e.target.value;
+    // Escolher "Estado" ou "Unidade de Conservação" liga o recorte
+    // correspondente no mapa: pedir o nível e depois ter que achar o seletor
+    // de generalização para ver o polígono era um passo a mais sem motivo.
+    const camada = nac ? ({ uf: 'estados', uc: 'ucs' }[lvl] ?? 'none') : store.get('layer');
+    store.set({ level: lvl, zone: null, uf: null, uc: null, site: null, layer: camada });
     syncHierarchy();
   };
 
@@ -355,6 +370,11 @@ function buildMapBar(id, cfg) {
   $('#f-zone').onchange = (e) => store.set('zone', e.target.value || null);
 
   if (nac) {
+    const ufs = uniq(core.national.sites.map((x) => x.uf).filter(Boolean)).sort()
+      .map((u) => ({ v: u, label: tituloUF(core.national.sites.find((x) => x.uf === u)?.uf_nome ?? u) }));
+    fillSelect($('#f-uf'), [{ v: '', label: t('all_ufs') }, ...ufs], store.get('uf') ?? '');
+    $('#f-uf').onchange = (e) => store.set('uf', e.target.value || null);
+
     const ucs = core.national.ucs.map((u) => ({ v: u, label: u }));
     fillSelect($('#f-uc'), [{ v: '', label: t('all_ucs') }, ...ucs], store.get('uc') ?? '');
     $('#f-uc').onchange = (e) => store.set('uc', e.target.value || null);
@@ -381,12 +401,13 @@ function buildMapBar(id, cfg) {
 
   syncVariable();
 
-  // Setores costeiros e regiões recifais só existem para Noronha; na escala
-  // nacional o seletor nem é montado.
-  if (!nac) {
-    fillSelect($('#f-layer'), SPATIAL_LAYERS.map((o) => ({ v: o.v, label: optLabel(o) })), store.get('layer'));
-    $('#f-layer').onchange = (e) => store.set('layer', e.target.value);
-  }
+  // Os recortes diferem por escala: em Noronha são feições do recife (setores
+  // costeiros, regiões recifais); nacionalmente são administrativos.
+  const camadas = nac ? NATIONAL_LAYERS : SPATIAL_LAYERS;
+  const atual = camadas.some((o) => o.v === store.get('layer')) ? store.get('layer') : 'none';
+  if (atual !== store.get('layer')) store.set('layer', atual);
+  fillSelect($('#f-layer'), camadas.map((o) => ({ v: o.v, label: optLabel(o) })), atual);
+  $('#f-layer').onchange = (e) => store.set('layer', e.target.value);
 
   if (cfg.datasets.length > 1) {
     makeChips(
@@ -407,12 +428,30 @@ function buildMapBar(id, cfg) {
   syncHierarchy();
 }
 
+/**
+ * Reflete nos seletores um recorte que veio de fora deles — do clique num
+ * polígono do mapa, por exemplo. Sem isso o painel filtra mas os controles
+ * seguem mostrando "Brasil", e o usuário não sabe por que o mapa mudou.
+ */
+function syncControlValues() {
+  const set = (sel, v) => { const el = $(sel); if (el) el.value = v ?? ''; };
+  set('#f-level', store.get('level'));
+  set('#f-zone', store.get('zone'));
+  set('#f-uf', store.get('uf'));
+  set('#f-uc', store.get('uc'));
+  set('#f-site', store.get('site'));
+  set('#f-layer', store.get('layer'));
+  syncHierarchy();
+}
+
 function syncHierarchy() {
   const lvl = store.get('level');
-  const z = $('#f-zone-wrap'), u = $('#f-uc-wrap'), s = $('#f-site-wrap');
-  if (z) z.hidden = lvl !== 'zone';
-  if (u) u.hidden = lvl !== 'uc';
-  if (s) s.hidden = lvl !== 'site';
+  const pares = [['#f-zone-wrap', 'zone'], ['#f-uf-wrap', 'uf'],
+                 ['#f-uc-wrap', 'uc'], ['#f-site-wrap', 'site']];
+  for (const [sel, nivel] of pares) {
+    const el = $(sel);
+    if (el) el.hidden = lvl !== nivel;
+  }
 }
 
 function syncVariable() {
@@ -456,9 +495,10 @@ function makeChips(el, options, isOn, onToggle) {
 // ---------------------------------------------------------------------------
 
 function visibleSites() {
-  const { level, zone, uc, site, activeDatasets, scope } = store.state;
+  const { level, zone, uf, uc, site, activeDatasets, scope } = store.state;
   let rows = (scope === 'national' && core.national) ? core.national.sites : core.sites;
   if (level === 'zone' && zone) rows = rows.filter((r) => r.zone === zone);
+  if (level === 'uf'   && uf)   rows = rows.filter((r) => r.uf === uf);
   if (level === 'uc'   && uc)   rows = rows.filter((r) => (r.ucs ?? []).some((x) => x.nome === uc));
   if (level === 'site' && site) rows = rows.filter((r) => r.Site === site);
   return rows.filter((r) => activeDatasets.some((ds) => r[`has_${ds}`]));
@@ -536,9 +576,10 @@ function chart(id) {
 
 /** Códigos de sítio que o recorte atual alcança; vazio = sem recorte. */
 function siteFilter() {
-  const { level, zone, uc, site, scope } = store.state;
+  const { level, zone, uf, uc, site, scope } = store.state;
   const fonte = (scope === 'national' && core.national) ? core.national.sites : core.sites;
   if (level === 'site' && site) return [site];
+  if (level === 'uf'   && uf)   return fonte.filter((s) => s.uf === uf).map((s) => s.Site);
   if (level === 'uc'   && uc)
     return fonte.filter((s) => (s.ucs ?? []).some((x) => x.nome === uc)).map((s) => s.Site);
   if (level === 'zone' && zone) return fonte.filter((s) => s.zone === zone).map((s) => s.Site);
@@ -855,17 +896,61 @@ function wireProfile() {
   $('#profile-close').onclick = () => store.set('selectedSite', null);
 }
 
-function renderProfile(code) {
+/** Chave da área selecionada, ou null quando o recorte é o país inteiro. */
+function areaSelecionada() {
+  const { level, zone, uf, uc } = store.state;
+  if (store.get('scope') !== 'national') return null;
+  if (level === 'uf'   && uf)   return { tipo: 'uf', chave: uf };
+  if (level === 'uc'   && uc)   return { tipo: 'uc', chave: uc };
+  if (level === 'zone' && zone) return { tipo: 'region', chave: zone };
+  return null;
+}
+
+/**
+ * O painel lateral mostra o que estiver selecionado: um sítio, se houver
+ * clique num ponto; senão a área do recorte atual. Pedir um estado e não ver
+ * nada sobre ele era o comportamento anterior.
+ */
+function renderProfile() {
   const panel = $('#profile');
-  if (!code) { panel.removeAttribute('data-open'); return; }
-  const s = core.sites.find((x) => x.Site === code);
+  const code = store.get('selectedSite');
+  if (!code) {
+    const area = areaSelecionada();
+    if (area) return renderAreaProfile(area);
+    panel.removeAttribute('data-open');
+    return;
+  }
+  const fonte = (store.get('scope') === 'national' && core.national)
+    ? core.national.sites : core.sites;
+  const s = fonte.find((x) => x.Site === code);
   if (!s) { panel.removeAttribute('data-open'); return; }
 
+  $('#profile-kind').textContent = t('profile');
   $('#profile-title').textContent = s.site_label;
   const present = DATASETS.filter((ds) => s[`has_${ds}`]);
   let html = `<div class="ds-badges">${present
     .map((ds) => `<span class="ds-badge" style="--c:${DS_COLOR[ds]}">${t(`ds_${ds}`)}</span>`).join('')}</div>`;
   html += row(t('lvl_zone'), s.zone_label ?? s.zone ?? '—');
+
+  // Na escala nacional o sítio é do ReefSYN e as métricas vêm de outra tabela.
+  if (store.get('scope') === 'national' && core.national) {
+    const rs = (core.reef_fish_summary ?? []).find((r) => r.site_id === code);
+    if (rs) {
+      html += `<div class="subhead">${t('ds_fish')}</div>`
+        + row(t('richness'), `${fmtInt(rs.n_species)} spp.`)
+        + row(t('families'), fmtInt(rs.n_families))
+        + row(t('censuses'), fmtInt(rs.n_events))
+        + row(t('individuals'), fmtInt(rs.total_abundance))
+        + row(t('year_range'), rs.year_range ?? '—');
+    }
+    if (s.uf_nome) html += row(t('lvl_uf'), tituloUF(s.uf_nome));
+    if (s.uc_name) html += row(t('lvl_uc'), s.uc_name);
+    const sp = (core.fish_sp_by_site ?? []).filter((r) => r.site_id === code).slice(0, 4);
+    html += especiesHTML(sp);
+    $('#profile-body').innerHTML = html;
+    panel.setAttribute('data-open', '');
+    return;
+  }
 
   const fish = core.fish_summary.find((r) => r.Site === code);
   if (fish) {
@@ -901,6 +986,93 @@ function renderProfile(code) {
   panel.setAttribute('data-open', '');
 }
 
+/** Nome do arquivo de foto a partir do nome científico, se existir. */
+const FOTOS = new Set(["abudefduf_saxatilis.jpg", "acanthurus_chirurgus.jpg", "acanthurus_coeruleus.jpg", "aluterus_scriptus.webp", "anisotremus_surinamensis.jpg", "aulostomus_strigosus.webp", "azurina_multilineata.webp", "bothus_lunatus.jpg", "cantherhines_macrocerus.webp", "caranx_latus.webp", "caranx_lugubris.webp", "cephalopholis_fulva.jpg", "chaetodon_ocellatus.webp", "dermatolepis_inermis.jpg", "diodon_hystrix.jpg", "elacatinus_figaro.jpg", "elacatinus_phthirophagus.jpg", "gymnothorax_funebris.webp", "gymnothorax_moringa.jpg", "haemulon_chrysargyreum.jpg", "haemulon_parra.webp", "halichoeres_radiatus.webp", "holacanthus_ciliaris.jpg", "holocentrus_adscensionis.jpg", "kyphosus_sectatrix.webp", "lactophrys_trigonus.webp", "malacoctenus_lianae.jpg", "melichthys_niger.jpg", "mulloidichthys_martinicus.webp", "myripristis_jacobus.jpg", "paranthias_furcifer.jpg", "pempheris_schomburgkii.jpg", "pomacanthus_paru.jpg", "pseudupeneus_maculatus.jpg", "sparisoma_amplum.jpg", "sparisoma_axillare.jpg", "sparisoma_frondosum.jpg", "sparisoma_radians.jpg", "sphyraena_barracuda.jpg", "stegastes_rocasensis.jpg", "thalassoma_noronhanum.jpg"]);
+const fotoDe = (sp) => {
+  const base = (sp ?? '').toLowerCase().replace(/\s+/g, '_');
+  for (const ext of ['jpg', 'webp', 'png']) {
+    if (FOTOS.has(`${base}.${ext}`)) return `${base}.${ext}`;
+  }
+  return null;
+};
+
+/**
+ * Grade 2x2 das espécies mais abundantes. Só 35-45% das espécies da costa
+ * têm foto no acervo (ele veio de Noronha), então quem não tem recebe um
+ * bloco neutro com a inicial do gênero -- melhor que um card quebrado.
+ */
+function especiesHTML(sp) {
+  if (!sp?.length) return '';
+  return `<div class="subhead">${t('top_species')}</div>
+    <div class="species-grid">${sp.map((r) => {
+      const nome = r.species ?? r.scientificNameAccepted;
+      const foto = r.photo ?? fotoDe(nome);
+      const n = r.abundance ?? r.total_abundance;
+      return `<div class="species">
+        ${foto
+          ? `<img src="assets/img/fish_photos/${foto}" alt="" loading="lazy">`
+          : `<div class="sp-sem-foto" aria-hidden="true">${(nome ?? '?').charAt(0)}</div>`}
+        <div class="sp-body">
+          <div class="sp-name">${nome}</div>
+          <div class="sp-fam">${r.family ?? r.family_label ?? ''}</div>
+          <div class="sp-n">${fmtInt(n)} ${t('individuals').toLowerCase()}</div>
+        </div></div>`;
+    }).join('')}</div>`;
+}
+
+/** Perfil de um estado, UC ou região. */
+function renderAreaProfile({ tipo, chave }) {
+  const panel = $('#profile');
+  let titulo, selo, stats = '', sp = [];
+
+  if (tipo === 'uf') {
+    const r = (core.fish_by_uf ?? []).find((x) => x.uf === chave);
+    titulo = tituloUF(r?.uf_nome ?? chave);
+    selo = t('lvl_uf');
+    if (r) stats = statsArea(r);
+    sp = (core.fish_sp_by_uf ?? []).filter((x) => x.uf === chave).slice(0, 4);
+  } else if (tipo === 'uc') {
+    const alvo = (core.national?.sites ?? []).flatMap((x) => x.ucs ?? [])
+      .find((u) => u.nome === chave);
+    const r = (core.fish_by_uc ?? []).find((x) => x.cd_cnuc === alvo?.cd);
+    titulo = chave;
+    selo = alvo?.cat ?? t('lvl_uc');
+    if (r) stats = statsArea(r);
+    sp = (core.fish_sp_by_uc ?? []).filter((x) => x.cd_cnuc === alvo?.cd).slice(0, 4);
+  } else {
+    const codes = new Set((core.national?.sites ?? [])
+      .filter((x) => x.region === chave).map((x) => x.Site));
+    const rs = (core.reef_fish_summary ?? []).filter((x) => codes.has(x.site_id));
+    const anos = (core.reef_fish_year ?? []).filter((x) => codes.has(x.site_id));
+    const censos = sum(anos.map((x) => x.n_events));
+    titulo = regionLabel(chave);
+    selo = t('lvl_region');
+    // Riqueza da região não é somável; sem tabela por região, informamos o
+    // que é somável e omitimos o resto em vez de publicar número errado.
+    stats = row(t('m_sites'), fmtInt(codes.size))
+          + row(t('censuses'), fmtInt(censos))
+          + row(t('individuals'), fmtInt(sum(anos.map((x) => x.total_abundance))))
+          + row(t('year_range'), anos.length
+              ? `${Math.min(...anos.map((x) => x.year))}–${Math.max(...anos.map((x) => x.year))}` : '—');
+  }
+
+  $('#profile-kind').textContent = t('profile_area');
+  $('#profile-title').textContent = titulo;
+  $('#profile-body').innerHTML =
+    `<div class="ds-badges"><span class="ds-badge" style="--c:var(--eixo)">${selo}</span></div>`
+    + stats + especiesHTML(sp);
+  panel.setAttribute('data-open', '');
+}
+
+function statsArea(r) {
+  return row(t('m_sites'), fmtInt(r.n_sites))
+       + row(t('censuses'), fmtInt(r.n_events))
+       + row(t('richness'), `${fmtInt(r.richness)} spp.`)
+       + row(t('families'), fmtInt(r.n_families))
+       + row(t('individuals'), fmtInt(r.total_abundance))
+       + row(getLang() === 'pt' ? 'Por censo' : 'Per census', fmtInt(r.mean_abundance));
+}
+
 const row = (k, v) => `<div class="stat-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 
 // ---------------------------------------------------------------------------
@@ -928,7 +1100,7 @@ function wireLang() {
     if (cfg) buildMapBar(store.get('eixo'), cfg);
     redrawMap();
     renderEixo(store.get('eixo'));
-    renderProfile(store.get('selectedSite'));
+    renderProfile();
   };
 
   window.addEventListener('resize', () => {

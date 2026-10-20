@@ -37,7 +37,10 @@
 ## Saida: data/reefsyn_benthos.rds
 ## =============================================================================
 
-suppressMessages(library(data.table))
+suppressMessages({
+  library(data.table)
+  library(sf)
+})
 
 REEF_DIR <- path.expand("~/Área de trabalho/ReefSYN")
 DWC <- file.path(REEF_DIR, "DwC_output")
@@ -51,14 +54,42 @@ ler <- function(f) fread(file.path(DWC, f), encoding = "Latin-1",
 DATASETS   <- c("XII", "XIII", "XIV", "XV", "XVI")
 COMUNIDADE <- c("XIV", "XV", "XVI")
 
-regiao <- function(lat) {
-  fifelse(lat > -1,   "Ilhas equatoriais",
-  fifelse(lat > -5.5, "Noronha e Rocas",
-  fifelse(lat > -10,  "Nordeste",
-  fifelse(lat > -15,  "Bahia",
-  fifelse(lat > -20,  "Abrolhos e ES",
-  fifelse(lat > -24,  "Rio de Janeiro",
-  fifelse(lat > -26,  "Sao Paulo", "Sul")))))))
+## Mesmo criterio de extract_reefsyn.R: macrorregiao do IBGE a partir do
+## estado mais proximo, com as ilhas oceanicas em categoria propria. As duas
+## extracoes TEM que concordar -- o painel filtra as duas camadas pela mesma
+## lista de regioes.
+IBGE <- c(AP="Norte", PA="Norte",
+          MA="Nordeste", PI="Nordeste", CE="Nordeste", RN="Nordeste",
+          PB="Nordeste", PE="Nordeste", AL="Nordeste", SE="Nordeste", BA="Nordeste",
+          ES="Sudeste", RJ="Sudeste", SP="Sudeste",
+          PR="Sul", SC="Sul", RS="Sul")
+LIMITE_OCEANICA_KM <- 100
+
+
+## Malha estadual: lida de data/estados_costeiros.gpkg, gravado uma vez por
+## build/cache_estados.R. Chamar geobr::read_state() em cada script corrompia
+## o cache dele quando dois rodavam perto um do outro.
+le_estados <- function() {
+  caminho <- "data/estados_costeiros.gpkg"
+  if (!file.exists(caminho)) {
+    stop("falta ", caminho, " — rode: Rscript build/cache_estados.R")
+  }
+  sf::st_read(caminho, quiet = TRUE)
+}
+
+atribui_uf <- function(dt) {
+  ufs <- le_estados()
+  pts <- sf::st_as_sf(dt, coords = c("lon", "lat"), crs = 4326, remove = FALSE)
+  i <- sf::st_nearest_feature(pts, ufs)
+  dt[, `:=`(
+    uf = ufs$uf[i],
+    uf_nome = ufs$uf_nome[i],
+    dist_uf_km = round(as.numeric(
+      sf::st_distance(pts, ufs[i, ], by_element = TRUE)) / 1000, 1)
+  )]
+  dt[, region := fifelse(dist_uf_km > LIMITE_OCEANICA_KM,
+                         "Ilhas oceânicas", unname(IBGE[uf]))]
+  dt[]
 }
 
 ## ---- Leitura ----------------------------------------------------------------
@@ -100,7 +131,7 @@ sitios <- tudo[, .(
 ), by = .(lon, lat)]
 setorder(sitios, -lat, lon)
 sitios[, site_id := sprintf("B%03d", .I)]
-sitios[, region := regiao(lat)]
+sitios <- atribui_uf(sitios)
 tudo <- merge(tudo, sitios[, .(lon, lat, site_id)], by = c("lon", "lat"))
 
 ## =============================================================================
@@ -177,8 +208,8 @@ stopifnot(
 )
 
 saveRDS(list(
-  sites         = sitios[, .(site_id, lon, lat, locality, region, datasets,
-                             n_eventos, ano_min, ano_max)],
+  sites         = sitios[, .(site_id, lon, lat, locality, region, uf, uf_nome,
+                             dist_uf_km, datasets, n_eventos, ano_min, ano_max)],
   coral_sy_sp   = coral_sy_sp,
   coral_sy      = coral_sy,
   coral_summary = coral_summary,
