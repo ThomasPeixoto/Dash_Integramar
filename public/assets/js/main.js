@@ -3403,7 +3403,7 @@ const row = (k, v) => `<div class="stat-row"><span class="k">${k}</span><span cl
 
 function applyLabels() {
   $$('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
-  document.title = `IntegraMAR — ${t('brand_sub')}`;
+  document.title = 'IntegraMAR';
 }
 
 function wireLang() {

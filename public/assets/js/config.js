@@ -259,7 +259,6 @@ const STRINGS = {
   pt: {
     tab_map: 'Mapa', tab_temporal: 'Séries Temporais',
     tab_stats: 'Composição', tab_data: 'Dados',
-    brand_sub: 'Fernando de Noronha',
     panel_filters: 'Recorte e camadas',
     credits: 'Responsáveis pelos dados',
     credit_profile: 'Abrir perfil',
@@ -368,7 +367,6 @@ const STRINGS = {
   en: {
     tab_map: 'Map', tab_temporal: 'Time Series',
     tab_stats: 'Composition', tab_data: 'Data',
-    brand_sub: 'Fernando de Noronha',
     panel_filters: 'Scope and layers',
     credits: 'Data stewards',
     credit_profile: 'Open profile',
