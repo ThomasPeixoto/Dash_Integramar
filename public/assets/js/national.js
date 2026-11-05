@@ -52,7 +52,12 @@ export function buildNational(core) {
   if (!core.reef_sites?.length) return null;
 
   const ucBySite = new Map();
-  for (const r of core.reef_site_uc ?? []) {
+  // Os dois vinculos sitio-UC entram no MESMO mapa: os codigos nao colidem
+  // (R### para peixe, B### para bentos) e tudo que le `site.ucs` -- nivel de
+  // protecao, comparacao por UC, perfil da area -- passa a valer para as duas
+  // camadas. Sem o segundo, os 141 sitios de coral/bentos apareciam como
+  // "fora de UC", o que alem de impedir a comparacao afirmava algo falso.
+  for (const r of [...(core.reef_site_uc ?? []), ...(core.benthos_site_uc ?? [])]) {
     if (!ucBySite.has(r.site_id)) ucBySite.set(r.site_id, []);
     ucBySite.get(r.site_id).push({ cd: r.cd_cnuc, nome: tituloUC(r.nome_uc),
                                    nome_cru: r.nome_uc, cat: r.categoria, uf: r.uf });
@@ -139,6 +144,37 @@ export function buildNational(core) {
     regions: uniq(sites.map((s) => s.region)).sort(),
     ucs: uniq(sites.flatMap((s) => s.ucs.map((u) => u.nome))).sort(),
   };
+}
+
+/**
+ * Nivel de protecao de um sitio, pelas categorias do SNUC.
+ *
+ * "Dentro de UC" como categoria unica junta coisas que nao se comparam: uma
+ * APA admite pesca, uma Reserva Biologica e no-take. Sao 53 sitios em APA
+ * contra 27 em REBIO -- tratados juntos, a maioria arrasta o resultado para o
+ * regime mais permissivo e o efeito de protecao some na media.
+ *
+ * Um sitio pode cair em mais de uma UC (4 casos): vale a MAIS restritiva,
+ * que e o regime que de fato limita o uso ali.
+ */
+const SNUC_INTEGRAL = new Set([
+  'Parque', 'Reserva Biológica', 'Estação Ecológica',
+  'Monumento Natural', 'Refúgio de Vida Silvestre',
+]);
+const SNUC_SUSTENTAVEL = new Set([
+  'Área de Proteção Ambiental', 'Reserva Extrativista',
+]);
+
+export const PROTECAO = ['integral', 'sustentavel', 'fora'];
+
+export function nivelProtecao(site) {
+  const cats = (site.ucs ?? []).map((u) => u.cat).filter(Boolean);
+  if (!cats.length) return 'fora';
+  if (cats.some((c) => SNUC_INTEGRAL.has(c))) return 'integral';
+  if (cats.some((c) => SNUC_SUSTENTAVEL.has(c))) return 'sustentavel';
+  // Categoria fora das duas listas: e UC, mas nao sabemos o regime. Nao
+  // entra como "fora" -- isso a contaria como desprotegida.
+  return 'outra';
 }
 
 /** Ordem geográfica, norte -> sul, com as ilhas oceânicas por último. */

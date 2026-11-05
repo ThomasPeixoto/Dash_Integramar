@@ -24,7 +24,13 @@ if (is.na(OUT)) OUT <- "public/data/geo"
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 msg <- function(...) cat(sprintf(...), "\n", sep = "")
 
-REEF_DIR <- path.expand("~/Área de trabalho/ReefSYN")
+## Raiz da fonte ReefSYN (DwC_output/ e _gis/). Padrao: a maquina local do
+## Thomas. No cluster, a copia certa fica em source/ReefSYN dentro do projeto:
+##   REEF_DIR=$PWD/source/ReefSYN Rscript build/extract_reefsyn.R
+## NAO aponte para ~/reefsyn_run/DwC_output do cluster: e uma versao ANTIGA e
+## diferente (sem I/DF_occ.csv, sem III/v2_2026) e produziria, sem erro algum,
+## um conjunto de dados errado.
+REEF_DIR <- path.expand(Sys.getenv("REEF_DIR", "~/Área de trabalho/ReefSYN"))
 
 grava <- function(x, nome, tol) {
   x <- st_simplify(st_transform(x, 4326), dTolerance = tol, preserveTopology = TRUE)

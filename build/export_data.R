@@ -284,8 +284,53 @@ fishers_summary <- data.frame(
   stringsAsFactors = FALSE
 )
 
-msg("pescadores: %d entrevistas agregadas (%d tipos de alimento, %d especies)",
-    nrow(fsh), nrow(consumo), nrow(captura))
+## ---- Perfil: dependencia e dedicacao ---------------------------------------
+## So DISTRIBUICOES MARGINAIS, nunca cruzadas. Numa comunidade de 63 pessoas,
+## cruzar idade x domicilio x experiencia reidentifica gente; cada variavel
+## isolada, em faixas, nao. A tabela linha-a-linha segue fora do repositorio.
+faixas <- function(x, largura) {
+  x <- suppressWarnings(as.numeric(x))
+  x <- x[!is.na(x)]
+  if (!length(x)) return(NULL)
+  piso <- floor(x / largura) * largura
+  tb <- as.data.frame(table(piso), stringsAsFactors = FALSE)
+  data.frame(bucket = sprintf("%d-%d", as.integer(tb$piso),
+                              as.integer(tb$piso) + largura - 1),
+             ordem  = as.integer(tb$piso),
+             n      = as.integer(tb$Freq),
+             stringsAsFactors = FALSE)
+}
+
+perfil_dist <- rbind(
+  cbind(var = "age",            faixas(fsh$age, 10)),
+  cbind(var = "experience",     faixas(fsh$experience, 10)),
+  cbind(var = "household_size", faixas(fsh$household_size, 1))
+)
+
+resumo_num <- function(nome, x) {
+  x <- suppressWarnings(as.numeric(x)); x <- x[!is.na(x)]
+  data.frame(var = nome, n = length(x), min = min(x),
+             median = stats::median(x), max = max(x), stringsAsFactors = FALSE)
+}
+perfil_stats <- rbind(
+  resumo_num("age", fsh$age),
+  resumo_num("experience", fsh$experience),
+  resumo_num("household_size", fsh$household_size)
+)
+
+## `other_occupation` responde "de que mais vive quem pesca". Quem respondeu
+## "no" nao tem outra ocupacao -- vive so da pesca. NA e ausencia de resposta,
+## nao ausencia de outra ocupacao, e por isso entra como categoria propria.
+ocup <- fsh$other_occupation
+ocup[is.na(ocup) | ocup == ""] <- "sem_resposta"
+perfil_ocup <- as.data.frame(table(ocup), stringsAsFactors = FALSE)
+names(perfil_ocup) <- c("ocupacao", "n")
+perfil_ocup <- perfil_ocup[order(-perfil_ocup$n), ]
+
+fishers_profile <- list(dist = perfil_dist, stats = perfil_stats, ocup = perfil_ocup)
+
+msg("pescadores: %d entrevistas agregadas (%d tipos de alimento, %d especies, %d faixas de perfil)",
+    nrow(fsh), nrow(consumo), nrow(captura), nrow(perfil_dist))
 
 core <- list(
   meta = list(
@@ -311,6 +356,9 @@ core <- list(
   fishers_consumption = encode_table(consumo),
   fishers_catch       = encode_table(captura),
   fishers_summary     = encode_table(fishers_summary),
+  fishers_dist        = encode_table(perfil_dist),
+  fishers_stats       = encode_table(perfil_stats),
+  fishers_ocup        = encode_table(perfil_ocup),
   pollution        = encode_table(prep(d$pollution)),
   pollution_nd     = encode_table(as.data.frame(d$pollution_nd))
 )
@@ -352,9 +400,28 @@ if (file.exists(rf)) {
   # fish_comp tem 10 mil linhas e so a aba temporal precisa dela. No core ela
   # levava o boot de 17 para 123 KB gzip; na camada sob demanda, o mapa abre
   # na mesma velocidade de antes.
-  reef_lazy <- list(reef_fish_comp = R$fish_comp)
-  msg("ReefSYN peixes: %d sitios, %d linhas sitio/ano, %d de composicao (sob demanda)",
-      nrow(R$sites), nrow(R$fish_site_year), nrow(R$fish_comp))
+  # `fish_year_sp` (sitio x ano x especie, as 120 mais abundantes) era
+  # calculado em extract_reefsyn.R e descartado aqui: o nome `fish_year_sp` ja
+  # estava ocupado pela tabela de Noronha mais abaixo, e a nacional simplesmente
+  # nunca chegava ao site. O resultado era a serie por especie "nao existir"
+  # fora de Noronha, quando na verdade existia e so faltava exportar. Vai com
+  # prefixo reef_ para nao colidir de novo.
+  reef_lazy <- list(reef_fish_comp    = R$fish_comp,
+                    reef_fish_year_sp = R$fish_year_sp)
+  # Funcao da assembleia (tamanho, biomassa, nivel trofico) por sitio-ano: 570
+  # linhas, so a aba temporal usa -> sob demanda. A tabela de procedencia
+  # (quanto vem de coeficiente de especie, de genero, quanto foi excluido) e
+  # minuscula e vai no core: o painel cita esses numeros em vez de fixa-los.
+  if (!is.null(R$fish_func_year)) {
+    reef_lazy$reef_fish_func <- R$fish_func_year
+    # Por taxon, em tabelas proprias: so carregam quando biomassa, tamanho ou
+    # nivel trofico sao escolhidos num painel de taxons.
+    reef_lazy$reef_fish_func_fam <- R$fish_func_fam
+    reef_lazy$reef_fish_func_sp  <- R$fish_func_sp
+    core$reef_func_meta <- encode_table(as.data.frame(R$fish_func_meta))
+  }
+  msg("ReefSYN peixes: %d sitios, %d linhas sitio/ano, %d de composicao, %d sitio/ano/especie (sob demanda)",
+      nrow(R$sites), nrow(R$fish_site_year), nrow(R$fish_comp), nrow(R$fish_year_sp))
 } else {
   msg("ReefSYN peixes ausente (%s) — site sai so com Noronha", rf)
 }
@@ -362,6 +429,10 @@ if (file.exists(rf)) {
 if (file.exists(rb)) {
   B <- readRDS(rb)
   core$reef_benthos_sites   <- encode_table(round_coords(as.data.frame(B$sites)))
+  # Vinculo sitio-UC dos sitios de bentos/coral. Vai em tabela PROPRIA: os
+  # codigos sao de outro espaco (B001...) e mistura-los em reef_site_uc, que e
+  # dos sitios de peixe (R001...), confundiria as duas camadas.
+  core$benthos_site_uc      <- encode_table(as.data.frame(B$site_uc))
   # Corais: camada nacional, os cinco datasets. Composicao relativa dentro da
   # assembleia de coral, que sobrevive a ausencia do denominador.
   core$coral_sy_sp   <- encode_table(as.data.frame(B$coral_sy_sp))

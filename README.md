@@ -56,6 +56,97 @@ censos e a única região presente de 2001 a 2005; as demais entram e saem. Uma
 linha nacional única mostraria geografia disfarçada de tendência, e o painel
 diz isso na tela.
 
+#### Função da assembleia: biomassa, tamanho e nível trófico
+
+Um painel do Eixo 1 (só peixes) mostra **biomassa**, **tamanho médio** e
+**nível trófico** ao longo do tempo, em linha ou em boxplot, agrupados por
+proteção, estado, região ou UC.
+
+As quatro variáveis (biomassa, tamanho médio, nível trófico ponderado pela
+abundância e pela biomassa) aparecem **nos gráficos que já existiam**, além do
+cartão próprio:
+
+- **Tendência principal** (chips de métrica ao lado de "Indivíduos por censo"):
+  na vista nacional por região e na comparação por proteção, estado, região ou
+  UC; o mapa de calor acompanha. Biomassa, tamanho e nível trófico são sempre
+  linhas ("área 100%" só faz sentido para a abundância). Ficam **fora** da vista
+  "Parâmetros" de um recorte, que põe quatro parâmetros num eixo só: kg, cm e
+  nível trófico (2–4,5) não cabem na escala de indivíduos por censo.
+- **Painel de táxons**, para as espécies ou famílias escolhidas: biomassa e
+  tamanho médio em espécie e família, e nível trófico médio só em família (o de
+  uma espécie é um traço fixo, e a "série" seria uma reta).
+- **Cartão "Biomassa, tamanho e nível trófico"**, com boxplot e agrupamento.
+
+A ausência pesa de formas diferentes, e o painel diz qual vale: biomassa de um
+táxon num sítio-ano amostrado sem ele é **zero** (medido, como a abundância);
+mas o **tamanho** e o nível trófico de quem não foi visto não existem, então
+esses sítio-anos ficam **fora** — contá-los como 0 cm puxaria a mediana para
+baixo. A nota mostra em quantos sítios cada táxon foi visto.
+
+Tudo parte do **comprimento medido em campo** — o CT de cada registro do eMOF
+(uma medida por ocorrência, 0,001% faltando) — e não do tamanho máximo da
+espécie. O peso individual é `a · CT^b` (g), e o nível trófico vem do banco de
+Quimbayo et al. (2021, *Ecology* 102:e03298), guardado sem alteração em
+`data/traits/` com a citação e a licença. A biomassa é em **kg por censo de
+40 m²** (×250 para kg/ha), só de peixes ósseos recifais: tubarões e raias não
+têm coeficiente no banco e ficam fora.
+
+Como o nome do ReefSYN vira o do banco (`build/traits_quimbayo.R`), em ordem:
+nome exato → subespécie → sinônimo revisado à mão → mediana do gênero. O nome
+exato vem primeiro porque o próprio banco tem trinômios
+(*Chilomycterus spinosus spinosus*) que colapsar antes de casar perderia.
+Cobertura medida sobre 1,15 milhão de indivíduos: **96,4%** com `a` e `b` de
+espécie, 3,0% pela mediana dos congêneres do gênero, 0,6% sem nada (nomes
+ausentes, a família Clupeidae, elasmobrânquios). Nível trófico: 94,7% de espécie,
+4,7% de gênero. Esses números saem em `reef_func_meta` e o painel os cita.
+
+**O que o painel herda e diz na tela:**
+
+- **58% dos indivíduos usam, dentro do próprio banco, coeficientes compilados
+  em nível de gênero ou família**, não de espécie. Os de espécie são 42%.
+- Comparado com as estimativas do FishBase (10 espécies), o peso de um peixe de
+  30 cm difere entre 0,53× e 1,54×. O artigo não declara a unidade nem o tipo
+  de comprimento; a de g para cm foi conferida contra o FishBase, não é dado
+  do banco.
+- **8,7% dos comprimentos são classes de tamanho** (datasets VII e VIII), e
+  valem pelo ponto médio. O peso cresce com o cubo do comprimento, então o
+  ponto médio subestima a biomassa dentro da classe.
+- O peso cresce com o cubo do comprimento, e erros de registro o amplificam: um
+  *Stegastes fuscus* (máx. 12,6 cm) com CT = 120 cm pesava 788 kg sozinho. Os
+  registros com CT **acima de 2× o máximo da espécie** (160 ocorrências, 299
+  indivíduos) saem do comprimento e do peso, e **só deles**: continuam na
+  abundância e no nível trófico. A fonte não é alterada. A razão 2 é uma
+  decisão (`CT_MAX_RAZAO`): 3,2% dos indivíduos passam do máximo, o que é erro
+  normal de estimativa visual, e só 0,026% passam de 2×.
+- **Proteção integral tem 48% dos sítios nas ilhas oceânicas, contra 7% de fora
+  de UC**, e as ilhas têm biomassa alta (cardumes de *Melichthys niger*, 18% da
+  biomassa nacional, com 4% dos indivíduos). Agrupar por proteção no país inteiro mistura geografia
+  com proteção, e o painel avisa com esses números medidos. Sem recorte, o
+  agrupamento padrão é por região, não por proteção.
+
+**Noronha entra por um caminho só.** Os 9 sítios de Noronha já estão entre os
+232 do ReefSYN: conferido censo a censo, os 705 censos e a abundância de cada
+um dos 9 anos são **idênticos** nas tabelas nativas de Noronha e nas do ReefSYN.
+Somar as duas contava Noronha em dobro (~7% dos censos). Com o ReefSYN
+carregado, as tabelas nativas de peixe não são lidas.
+
+**Custo dos dados:** as variáveis por táxon vão em tabelas próprias
+(`reef_fish_func_fam`, `reef_fish_func_sp`: 58 e 71 KB gzip), carregadas só
+quando alguém escolhe uma métrica funcional. Gravá-las como colunas de
+`reef_fish_comp` e `reef_fish_year_sp`, que carregam ao abrir o Eixo 1, somaria
+~94 KB a toda visita; essas duas tabelas ficaram byte a byte idênticas ao que
+eram.
+
+Verificação: biomassa, comprimento e nível trófico de 3 sítio-anos foram
+recalculados à mão a partir dos CSVs crus do DwC e do banco, e batem com o
+extrator (diferença de 4×10⁻⁵ kg, arredondamento); os 62 pontos plotados por
+região e ano batem com a mediana calculada de forma independente em R. O mesmo
+vale por táxon: biomassa e tamanho de 3 espécies e 3 famílias de um censo batem
+com o cálculo à mão, e as séries de 4 espécies (biomassa com zeros em 22 anos,
+tamanho só onde foram vistas) batem com o R. O nível trófico de família difere do
+cálculo "só com valor de espécie" exatamente pelo preenchimento por gênero
+(ex.: *Stegastes sanctipauli*, sem nível trófico no banco, recebe 2,5).
+
 Geração: `build/extract_reefsyn.R` e `build/extract_reefsyn_benthos.R`, que
 rodam na máquina local (a fonte, `~/Área de trabalho/ReefSYN`, não está no
 cluster). Ambos travam se o resultado divergir da extração de referência.
@@ -99,7 +190,13 @@ Sem servidor, o site:
 site/
 ├── build/
 │   ├── export_data.R      RDS -> JSON colunar + GeoJSON
+│   ├── extract_reefsyn*.R ReefSYN -> RDS (peixes, bentos); peso e nível trófico
+│   ├── traits_quimbayo.R  nome ReefSYN -> banco de traços; coeficientes e fallbacks
+│   ├── patches/           trabalho guardado fora do site (ver cada .patch)
 │   └── serve.sh           servidor estático local/rede
+├── data/
+│   ├── reefsyn_*.rds      saída dos extratores
+│   └── traits/            Quimbayo et al. 2021, sem alteração, com LEIAME
 ├── public/                O SITE. É isto que se publica.
 │   ├── index.html
 │   ├── assets/
@@ -196,6 +293,25 @@ de o arquivo ser removido.
 
 Para publicar, copie `public/` para o host. Nenhum passo de build.
 
+### Regenerar os dados
+
+Da raiz do projeto (os caminhos são relativos a ela). A fonte ReefSYN
+(`DwC_output/` e `_gis/`) é lida de `REEF_DIR`; sem a variável, usa o caminho da
+máquina de desenvolvimento.
+
+```bash
+export REEF_DIR=/caminho/para/ReefSYN
+Rscript build/extract_reefsyn.R         data/reefsyn_fish.rds
+Rscript build/extract_reefsyn_benthos.R data/reefsyn_benthos.rds
+Rscript build/build_areas_geo.R                              # polígonos de estados e UCs
+Rscript build/export_data.R ../dashboard public/data data    # JSON do site
+```
+
+`export_data.R` também lê os RDS do painel Shiny de Noronha (`../dashboard/data/`).
+Os dois extratores travam se o resultado divergir da extração de referência
+(10.686 censos, 232 sítios, 326 espécies de peixe): isso indica que a
+deduplicação mudou de comportamento.
+
 ---
 
 ## Estética
@@ -212,6 +328,17 @@ Os tokens em `assets/css/tokens.css` vêm das custom properties do tema de
 ---
 
 ## Pendente
+
+- **Confirmar o sinônimo *Haemulon atlanticus* = *Emmelichthyops atlanticus***
+  (4.136 indivíduos): casa por epíteto e família, mas é o único dos cinco
+  sinônimos de `SINONIMOS` marcado "CONFIRMAR". Os outros quatro são
+  combinações conhecidas (inclusive *Azurina multilineata* = *Chromis
+  multilineata*, 157 mil indivíduos)
+- Biomassa em kg/ha em vez de kg por censo, se o público preferir (×250, a
+  área do transecto é 40 m² em todos os datasets)
+- Biomassa e tamanho por espécie, não só da assembleia: `fish_year_sp` só guarda
+  a abundância; levar `a·CT^b` e Σ(CT) para essa tabela daria o tamanho das
+  espécies-alvo (budiões, pargos) ao longo do tempo
 
 - Aba de dados / Darwin Core (porte de `R/mod_explorador.R`)
 - Separar coral branqueado de coral vivo: 48% das linhas de "Hard coral" são

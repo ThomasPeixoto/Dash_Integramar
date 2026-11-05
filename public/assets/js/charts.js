@@ -126,16 +126,33 @@ export function groupSeries(core, dataset, sitesFilter) {
 }
 
 /** Media e erro padrao por (ano, grupo), entre sitios. */
-function aggregate(rows) {
+/** Mediana de uma lista ja filtrada de numeros finitos. */
+function mediana(v) {
+  if (!v.length) return null;
+  const x = [...v].sort((a, b) => a - b);
+  const i = Math.floor(x.length / 2);
+  return x.length % 2 ? x[i] : (x[i - 1] + x[i]) / 2;
+}
+
+/**
+ * `stat` escolhe o resumo entre sitios dentro de cada ano. A media e o padrao
+ * historico; a mediana resiste a sitios atipicos, que num recife sao a regra e
+ * nao a excecao -- um cardume num censo levanta a media do ano inteiro.
+ */
+function aggregate(rows, { stat = 'mean' } = {}) {
   const out = [];
   for (const [key, g] of groupBy(rows, (r) => `${r.Year}|${r.group}`)) {
     const [Year, group] = key.split('|');
     const v = g.map((r) => r.value).filter(Number.isFinite);
-    const m = v.length ? sum(v) / v.length : null;
+    const m = !v.length ? null
+      : (stat === 'median' ? mediana(v) : sum(v) / v.length);
     // SE so faz sentido com mais de uma observacao; com n = 1 fica NA e a
-    // faixa simplesmente nao e desenhada, em vez de virar zero.
-    const se = v.length > 1
-      ? Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / (v.length - 1)) / Math.sqrt(v.length)
+    // faixa simplesmente nao e desenhada, em vez de virar zero. Com mediana
+    // nao calculamos SE: o erro-padrao e definido em torno da MEDIA, e
+    // desenhar uma faixa dessas ao redor da mediana seria uma faixa errada.
+    const med = v.length ? sum(v) / v.length : null;
+    const se = (stat === 'mean' && v.length > 1)
+      ? Math.sqrt(v.reduce((a, x) => a + (x - med) ** 2, 0) / (v.length - 1)) / Math.sqrt(v.length)
       : null;
     out.push({ Year: +Year, group, mean: m, se });
   }
@@ -151,7 +168,7 @@ function aggregate(rows) {
  * o que define a cor (colorFor) e o que identifica a serie internamente, para
  * que trocar de idioma nao troque as cores do grafico.
  */
-export function trendOption(rows, { type = 'lines', unit = '', nameOf = (g) => g } = {}) {
+export function trendOption(rows, { type = 'lines', unit = '', nameOf = (g) => g, escala = false } = {}) {
   const agg = aggregate(rows);
   const years = uniq(agg.map((r) => r.Year)).sort((a, b) => a - b);
   const groups = uniq(agg.map((r) => r.group)).sort();
@@ -220,7 +237,9 @@ export function trendOption(rows, { type = 'lines', unit = '', nameOf = (g) => g
     ...BASE(),
     legend: { ...BASE().legend, data: groups.map(nameOf) },
     xAxis: { ...BASE().xAxis, data: years },
-    yAxis: { ...BASE().yAxis, axisLabel: { ...BASE().yAxis.axisLabel, formatter: (v) => `${v}${unit}` } },
+    // `escala` solta o zero do eixo (nivel trofico vive entre 2 e 4,5).
+    yAxis: { ...BASE().yAxis, scale: escala,
+      axisLabel: { ...BASE().yAxis.axisLabel, formatter: (v) => `${v}${unit}` } },
     tooltip: {
       ...BASE().tooltip,
       // As duas series auxiliares de cada faixa de erro sao empilhadas e seus
@@ -262,6 +281,57 @@ export async function taxonSeries(core, dataset, sitesFilter) {
   });
 }
 
+/**
+ * Varios parametros no MESMO grafico, uma cor por linha, UM eixo so.
+ *
+ * O resumo entre sitios e a MEDIANA. Com media, um sitio atipico levantava o
+ * ano inteiro e a abundancia chegava a 11x o numero de familias, o que obrigou
+ * a um segundo eixo. A mediana derruba esse fator para ~4x no Brasil inteiro e
+ * permite ler as quatro linhas na mesma regua -- que e o ponto de po-las no
+ * mesmo grafico. Num recorte pequeno a razao ainda chega a ~10x e as linhas
+ * de contagem ficam na parte de baixo; e o preco do eixo unico.
+ *
+ * Sem faixa de erro-padrao: o SE e definido em torno da media, e desenha-lo em
+ * volta da mediana seria uma faixa que nao corresponde ao ponto.
+ */
+export function multiParamOption(rows, { ordem, rotulo, cores = null, unidade = '',
+                                         casas = 1, escala = false } = {}) {
+  const agg = aggregate(rows, { stat: 'median' });
+  const years = uniq(agg.map((r) => r.Year)).sort((a, b) => a - b);
+  const grupos = ordem.filter((g) => agg.some((r) => r.group === g));
+  const at = (g, y) => agg.find((r) => r.group === g && r.Year === y);
+
+  const base = BASE();
+
+  return {
+    ...base,
+    xAxis: { ...base.xAxis, data: years },
+    // `escala` solta o zero do eixo: o nivel trofico vive entre 2 e 4,5, e com o
+    // zero forcado toda a variacao cabe em 15% da altura.
+    yAxis: { ...base.yAxis, scale: escala,
+      axisLabel: { ...base.yAxis.axisLabel, formatter: (v) => `${fmt(v, casas)}${unidade}` } },
+    tooltip: {
+      ...base.tooltip,
+      valueFormatter: (v) => (Number.isFinite(v) ? `${fmt(v, casas)}${unidade}` : '—'),
+    },
+    series: grupos.map((g, i) => ({
+      name: rotulo.serie(g),
+      type: 'line',
+      smooth: 0.25,
+      symbol: 'circle',
+      symbolSize: 6,
+      lineStyle: { width: 2.2, color: cores?.[i] ?? CAT[i % CAT.length] },
+      itemStyle: { color: cores?.[i] ?? CAT[i % CAT.length] },
+      emphasis: { focus: 'series' },
+      connectNulls: false,
+      data: years.map((y) => {
+        const r = at(g, y);
+        return Number.isFinite(r?.mean) ? r.mean : '-';
+      }),
+    })),
+  };
+}
+
 export function taxonOption(rows, selected, unit = '') {
   const sel = rows.filter((r) => selected.includes(r.name));
   const years = uniq(sel.map((r) => r.Year)).sort((a, b) => a - b);
@@ -290,22 +360,161 @@ export function taxonOption(rows, selected, unit = '') {
   };
 }
 
+/** Quartis por interpolacao linear (tipo 7, o padrao do R). */
+function quartis(vals) {
+  const x = [...vals].sort((a, b) => a - b);
+  const q = (p) => {
+    if (x.length === 1) return x[0];
+    const h = (x.length - 1) * p;
+    const lo = Math.floor(h);
+    const hi = Math.ceil(h);
+    return x[lo] + (x[hi] - x[lo]) * (h - lo);
+  };
+  return [x[0], q(0.25), q(0.5), q(0.75), x[x.length - 1]];
+}
+
+/**
+ * Cinco numeros da caixa com as hastes de Tukey: a haste para na observacao
+ * mais extrema DENTRO da cerca Q1 - 1,5*IQR .. Q3 + 1,5*IQR, como em
+ * `boxplot()` do R. Devolve tambem quantas observacoes ficaram fora.
+ */
+function tukey(vals) {
+  const [mi, q1, md, q3, ma] = quartis(vals);
+  const iqr = q3 - q1;
+  const baixo = q1 - 1.5 * iqr;
+  const alto  = q3 + 1.5 * iqr;
+  const dentro = vals.filter((v) => v >= baixo && v <= alto);
+  const lo = dentro.length ? Math.min(...dentro) : mi;
+  const hi = dentro.length ? Math.max(...dentro) : ma;
+  const stats = [lo, q1, md, q3, hi];
+  stats.fora = vals.length - dentro.length;
+  // O maior valor que ficou ALEM DA CERCA pelo lado de cima -- nao o maximo
+  // do grupo, que pode estar dentro dela. Null quando nenhum passou por cima.
+  const altos = vals.filter((v) => v > alto);
+  stats.extremo = altos.length ? Math.max(...altos) : null;
+  return stats;
+}
+
+/** Quantas observacoes caem fora da cerca, e qual o maior valor. */
+export function foraDaCerca(vals) {
+  const s = tukey(vals);
+  return { fora: s.fora, extremo: s.extremo, haste: s[4] };
+}
+
+/**
+ * Boxplot de taxons: uma caixa por (taxon x grupo), cada OBSERVACAO e um
+ * sitio. O valor do sitio e o resumo dele ao longo dos anos, feito antes de
+ * chegar aqui -- a caixa descreve a variacao ENTRE sitios, nao entre anos, e
+ * e por isso que ela responde "dentro contra fora da UC".
+ *
+ * As hastes seguem a regra de Tukey (1,5 x IQR), nao o minimo e o maximo.
+ * Medido: com as quatro especies mais abundantes do pais a mediana ficava em
+ * 0,65 ind./censo e o maximo em 885 -- um sitio so. Com hastes ate o extremo,
+ * as caixas ocupavam os 4% de baixo do eixo e nao se liam. Os pontos fora da
+ * cerca NAO sao desenhados, porque desenha-los devolve a mesma compressao;
+ * eles sao contados e ditos em `fora`, para que nada fique escondido sem
+ * aviso.
+ */
+export function boxTaxaOption({ categorias, grupos, valores, unidade = '',
+                                cores = null, rotuloGrupo = (g) => g, italico = false,
+                                casas = 1, escala = false,
+                                rotuloN = (k) => `${k} sítios`,
+                                rotuloEstat = {
+                                  mediana: 'mediana', quartis: 'quartis',
+                                  haste: 'hastes (1,5×IQR)',
+                                  fora: (k, m) => `${k} fora da cerca, até ${m}`,
+                                } } = {}) {
+  const base = BASE();
+  const chave = (c, g) => `${c}\u0000${g}`;
+  const n = (c, g) => (valores.get(chave(c, g)) ?? []).length;
+
+  const series = grupos.map((g, i) => ({
+    name: rotuloGrupo(g),
+    type: 'boxplot',
+    boxWidth: [8, 34],
+    itemStyle: {
+      color: 'rgba(255,255,255,.88)',
+      borderColor: cores?.[i] ?? CAT[i % CAT.length],
+      borderWidth: 1.8,
+    },
+    emphasis: { focus: 'series', itemStyle: { borderWidth: 2.6 } },
+    data: categorias.map((c) => {
+      const v = valores.get(chave(c, g)) ?? [];
+      // '-' e nao null: o boxplot do ECharts le `item.value` de cada celula
+      // e estoura num null.
+      return v.length ? tukey(v) : '-';
+    }),
+  }));
+
+  return {
+    ...base,
+    grid: { ...base.grid, bottom: 92 },
+    legend: { ...base.legend, data: grupos.map(rotuloGrupo) },
+    xAxis: {
+      ...base.xAxis,
+      data: categorias,
+      // Com poucas categorias o nome cientifico cabe inteiro se quebrar em
+      // duas linhas; truncar "Thalassoma noro..." num eixo com espaco de
+      // sobra escondia o epiteto, que e o que distingue as especies do
+      // mesmo genero logo ao lado.
+      axisLabel: {
+        ...base.xAxis.axisLabel,
+        // So genero e especie vao em italico; familia, nao.
+        interval: 0, fontStyle: italico ? 'italic' : 'normal',
+        rotate: categorias.length > 5 ? 30 : 0,
+        width: categorias.length > 5 ? 120 : 150,
+        overflow: categorias.length > 5 ? 'truncate' : 'break',
+        lineHeight: 14,
+      },
+    },
+    yAxis: { ...base.yAxis, scale: escala,
+      axisLabel: { ...base.yAxis.axisLabel, formatter: (v) => `${fmt(v, casas)}${unidade}` } },
+    tooltip: {
+      ...base.tooltip,
+      trigger: 'item',
+      formatter: (p) => {
+        const cat = categorias[p.dataIndex];
+        const g = grupos[p.seriesIndex];
+        // O item de boxplot chega como [indice, min, Q1, mediana, Q3, max] em
+        // `value`, mas `data` guarda o array original de cinco. Em vez de
+        // apostar em qual dos dois, tiramos o indice quando ele esta la.
+        const bruto = p.value ?? p.data;
+        const [mi, q1, md, q3, ma] = bruto.length > 5 ? bruto.slice(1) : bruto;
+        const u = (x) => `${fmt(x, casas)}${unidade}`;
+        const vs = valores.get(chave(cat, g)) ?? [];
+        const ext = vs.length ? tukey(vs) : null;
+        return `<strong>${cat}</strong><br>${rotuloGrupo(g)}`
+          + ` &middot; ${rotuloN(n(cat, g))}<br>`
+          + `${rotuloEstat.mediana} <strong>${u(md)}</strong><br>`
+          + `${rotuloEstat.quartis} ${u(q1)} – ${u(q3)}<br>`
+          + `${rotuloEstat.haste} ${u(mi)} – ${u(ma)}`
+          + (ext?.fora ? `<br>${rotuloEstat.fora(ext.fora, u(ext.extremo))}` : '');
+      },
+    },
+    series,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 3. Mapa de calor ano x grupo
 // ---------------------------------------------------------------------------
 
-export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g) {
+export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g, { escala = false } = {}) {
   const agg = aggregate(rows);
   const years = uniq(agg.map((r) => r.Year)).sort((a, b) => a - b);
   const groups = uniq(agg.map((r) => r.group)).sort().reverse();
 
   const data = [];
-  let max = 0;
+  let max = 0, min = Infinity;
   for (const r of agg) {
     if (!Number.isFinite(r.mean)) continue;
     data.push([years.indexOf(r.Year), groups.indexOf(r.group), r.mean]);
     if (r.mean > max) max = r.mean;
+    if (r.mean < min) min = r.mean;
   }
+  // Com `escala` a rampa comeca no MENOR valor: nivel trofico entre 2 e 4,5 numa
+  // rampa de 0 a 4,5 gastaria metade das cores em valores que nao existem.
+  const piso = escala && Number.isFinite(min) ? Math.floor(min * 10) / 10 : 0;
 
   return {
     ...BASE(),
@@ -325,7 +534,7 @@ export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g) {
       axisLabel: { color: '#5a6a8a', fontSize: 11 },
     },
     visualMap: {
-      min: 0, max: max || 1,
+      min: piso, max: max || 1,
       calculable: true, orient: 'horizontal',
       left: 'center', bottom: 2, itemHeight: 90, itemWidth: 11,
       textStyle: { color: '#5a6a8a', fontSize: 10.5 },
@@ -345,8 +554,99 @@ export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g) {
 // ---------------------------------------------------------------------------
 
 /** Barras simples. `horizontal` quando os rótulos são nomes longos. */
-export function barOption({ categories, values, color = '#353F7C', unit = '',
-                            horizontal = false, decimals = 1 } = {}) {
+/**
+ * Rosca de composicao. O denominador e a soma das fatias recebidas -- quem
+ * chama decide o que entra, e a rosca nunca "falta" pedaco para fechar 100%.
+ */
+export function donutOption(fatias, { unidade = '' } = {}) {
+  const total = sum(fatias.map((f) => f.value));
+  const ord = [...fatias].sort((a, b) => b.value - a.value);
+  const base = BASE();
+  return {
+    ...base,
+    legend: {
+      ...base.legend,
+      type: 'scroll', orient: 'vertical', right: 6, top: 'middle',
+      itemGap: 9, textStyle: { color: '#5a6a8a', fontSize: 11 },
+    },
+    tooltip: {
+      ...base.tooltip,
+      trigger: 'item',
+      formatter: (p) => `${p.name}<br><b>${fmt(p.value, 3)}${unidade}</b>`
+        + `<br><span style="color:#5a6a8a">${fmt((100 * p.value) / total, 1)}%</span>`,
+    },
+    series: [{
+      type: 'pie',
+      radius: ['46%', '72%'],
+      center: ['34%', '52%'],
+      avoidLabelOverlap: true,
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      labelLine: { show: false },
+      emphasis: { scaleSize: 6, itemStyle: { shadowBlur: 14, shadowColor: 'rgba(32,38,75,.22)' } },
+      data: ord.map((f, i) => ({
+        name: f.name, value: f.value,
+        itemStyle: { color: CAT[i % CAT.length] },
+      })),
+    }],
+  };
+}
+
+/**
+ * Dia contra noite, com o saldo marcado.
+ *
+ * O numero que interessa -- o fluxo liquido em 24 h -- e a soma de dois
+ * processos de sinais opostos. Mostrar so o liquido esconde o mecanismo;
+ * mostrar as cinco camaras lado a lado (como antes) mostra a dispersao e
+ * esconde o mecanismo tambem. Aqui a barra do dia sobe, a da noite desce, e
+ * o losango marca onde o saldo cai.
+ */
+export function dayNightOption(linhas, { unidade = '' } = {}) {
+  const base = BASE();
+  const cats = linhas.map((l) => l.nome);
+  return {
+    ...base,
+    grid: { ...base.grid, top: 54, bottom: 30 },
+    legend: { ...base.legend, data: linhas[0] ? [linhas[0].rotuloDia, linhas[0].rotuloNoite, linhas[0].rotuloNet] : [] },
+    tooltip: {
+      ...base.tooltip,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      valueFormatter: (v) => (Number.isFinite(v) ? `${fmt(v, 1)}${unidade}` : '—'),
+    },
+    xAxis: { ...base.xAxis, data: cats },
+    yAxis: {
+      ...base.yAxis,
+      axisLabel: { ...base.yAxis.axisLabel, formatter: (v) => `${v}${unidade}` },
+    },
+    series: [
+      {
+        name: linhas[0]?.rotuloDia, type: 'bar', stack: 'dn',
+        itemStyle: { color: '#FDA749', borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: 54,
+        data: linhas.map((l) => l.dia),
+      },
+      {
+        name: linhas[0]?.rotuloNoite, type: 'bar', stack: 'dn',
+        itemStyle: { color: '#353F7C', borderRadius: [0, 0, 4, 4] },
+        barMaxWidth: 54,
+        data: linhas.map((l) => l.noite),
+      },
+      {
+        // O losango nao empilha: e o saldo medido, nao a soma das barras.
+        // Os dois quase coincidem, e e exatamente isso que queremos mostrar.
+        name: linhas[0]?.rotuloNet, type: 'scatter',
+        symbol: 'diamond', symbolSize: 15,
+        itemStyle: { color: '#F76043', borderColor: '#fff', borderWidth: 2 },
+        z: 5,
+        data: linhas.map((l) => l.net),
+      },
+    ],
+  };
+}
+
+export function barOption({ categories, values, color = '#353F7C', colors = null,
+                            unit = '', horizontal = false, decimals = 1 } = {}) {
   const cat = {
     type: 'category', data: categories,
     axisLine: { lineStyle: { color: 'rgba(53,63,124,.18)' } },
@@ -374,7 +674,11 @@ export function barOption({ categories, values, color = '#353F7C', unit = '',
     yAxis: horizontal ? { ...cat, data: categories } : val,
     series: [{
       type: 'bar',
-      data: values,
+      // `colors` pinta barra a barra -- usado para acender o sitio que esta
+      // selecionado no mapa, em vez de obrigar a procurar o nome na lista.
+      data: colors
+        ? values.map((v, i) => ({ value: v, itemStyle: { color: colors[i] } }))
+        : values,
       itemStyle: { color, borderRadius: horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0] },
       barMaxWidth: 26,
       emphasis: { itemStyle: { opacity: 0.82 } },

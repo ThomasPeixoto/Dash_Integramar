@@ -158,7 +158,7 @@ main { height: calc(100vh - var(--appbar-h)); position: relative; }
 /* Views de leitura: largura de texto do site, rolagem propria. */
 .view--doc { overflow-y: auto; background: var(--surface-alt); }
 .shell { max-width: var(--shell); margin: 0 auto; padding: 44px 24px 80px; }
-.shell--wide { max-width: 1420px; }
+.shell--wide { max-width: 1680px; }
 
 .section-head { margin-bottom: 26px; }
 .section-head h2 { font-size: 30px; color: var(--navy); line-height: 1.2; }
@@ -228,9 +228,20 @@ main { height: calc(100vh - var(--appbar-h)); position: relative; }
    Mapa embutido no bloco
    =========================================================================== */
 
+/* O mapa e o texto querem larguras opostas: o texto pede medida curta (~70
+   colunas) e o mapa pede o maximo. Em vez de estourar o shell com 50vw -- que
+   conta a barra de rolagem e abria rolagem horizontal -- o shell inteiro
+   cresce e so o TEXTO fica limitado. Sem unidade de viewport, sem overflow. */
+.block--map > .question,
+.block--map > .reading { max-width: 78ch; }
+
 .map-slot {
-  height: 64vh;
-  min-height: 440px;
+  /* Com o shell em 1680px o mapa ficava largo e raso -- uma faixa. A costa
+     brasileira e um objeto VERTICAL: 29 graus de latitude contra 13 de
+     longitude. Enquadrar o pais numa faixa baixa joga quase todo o zoom fora.
+     Dai a altura generosa, limitada para nao passar da janela. */
+  height: min(92vh, 980px);
+  min-height: 680px;
   border-radius: var(--r);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
@@ -238,8 +249,51 @@ main { height: calc(100vh - var(--appbar-h)); position: relative; }
   background: var(--offwhite);
 }
 
-.mapkit { position: relative; display: flex; flex-direction: column; height: 100%; }
-#map { flex: 1; min-height: 0; background: var(--offwhite); }
+.mapkit { display: flex; flex-direction: column; height: 100%; }
+/* O painel flutua sobre o MAPA, nao sobre o conjunto: ancorado no #mapkit ele
+   subia por cima da trilha e dos seletores, que e justamente o que se usa
+   para trocar de lugar enquanto se le o perfil. */
+.mapkit-canvas { position: relative; flex: 1; min-height: 0; display: flex; }
+
+/* Trilha do recorte */
+.trilha {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+.trilha-raiz  { color: var(--muted); }
+.trilha-sep   { color: var(--muted); opacity: 0.6; }
+.trilha-passo { color: var(--navy); font-weight: 600; }
+.trilha-limpar {
+  margin-left: auto;
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.trilha-limpar:hover { color: var(--navy); border-color: var(--navy); }
+
+.nota {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+}
+#map { flex: 1; min-width: 0; min-height: 0; background: var(--offwhite); }
 
 /* Faixa de controles acima do mapa, horizontal: na arquitetura por eixos o
    painel vertical flutuante roubava largura justamente de quem só quer ler. */
@@ -350,6 +404,10 @@ select.input:focus, input.input:focus {
 }
 
 /* Conjuntos de dados como chips alternaveis, cada um na sua cor. */
+/* `hidden` e um atributo, mas `.chips { display:flex }` tem a mesma
+   especificidade e vinha depois: a linha continuava na tela com hidden=true. */
+.chips[hidden] { display: none; }
+
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* Lista longa de taxons: rola dentro do card em vez de um <select multiple>,
@@ -719,7 +777,7 @@ input.gridjs-input {
 @media (max-width: 860px) {
   .eixo-head h2 { font-size: 26px; }
   .question { font-size: 19px; }
-  .map-slot { height: 70vh; }
+  .map-slot { height: 70vh; min-height: 420px; }
   .panel--profile {
     top: auto; bottom: 10px; left: 10px; right: 10px;
     width: auto; max-height: 56%;
@@ -816,3 +874,355 @@ a.credit-avatar:hover { transform: scale(1.06); }
   color: var(--line-strong);
   user-select: none;
 }
+
+/* ===========================================================================
+   Painel de parametros (Eixo 2 — poluicao)
+   =========================================================================== */
+
+.param-panel { display: grid; gap: 22px; }
+
+.param-matriz > h3 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.param-fams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 14px;
+}
+.param-fam {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  padding: 13px 14px 10px;
+}
+.param-fam > h4 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 9px;
+}
+/* Marca a familia que soma a um total declarado: so nessas a rosca aparece. */
+.param-tot {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.param-row {
+  display: grid;
+  grid-template-columns: 1fr 72px auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  padding: 5px 7px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.param-row:hover { background: var(--offwhite); }
+.param-row[aria-pressed="true"] { background: rgba(152, 34, 99, 0.09); }
+.param-row[aria-pressed="true"] .param-nome { font-weight: 700; color: var(--navy); }
+
+.param-nome {
+  font-size: 12.5px;
+  color: #45506e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A faixa mostra onde a mediana cai entre o menor e o maior sitio. Nao e
+   magnitude absoluta: entre os metais o ferro e 90.000x o cadmio, e barras
+   proporcionais dariam uma cheia e oito vazias. */
+.param-faixa {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #F7E4EE, #982263);
+  opacity: 0.55;
+}
+.param-faixa[data-uniforme] { background: var(--line); }
+.param-faixa > i {
+  position: absolute;
+  top: 50%;
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #982263;
+  box-shadow: 0 1px 3px rgba(32, 38, 75, 0.25);
+}
+.param-row[aria-pressed="true"] .param-faixa { opacity: 1; }
+
+.param-val {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy);
+  white-space: nowrap;
+}
+.param-val em { font-style: normal; color: var(--muted); margin-left: 2px; font-size: 10.5px; }
+
+@media (max-width: 720px) {
+  .param-fams { grid-template-columns: 1fr; }
+  .param-row { grid-template-columns: 1fr 52px auto; }
+}
+
+/* ===========================================================================
+   Numeros-destaque (Eixo 3)
+   Valor grande, rotulo, e UMA frase com a leitura. A frase nao e enfeite:
+   sem ela "31,8 mmol/m²/d" exige que o leitor ja saiba o que e NCC.
+   =========================================================================== */
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+  gap: 14px;
+  margin: 18px 0 20px;
+}
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--eixo, var(--navy));
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  padding: 15px 17px 14px;
+}
+.stat-card[data-tom="bom"]      { border-left-color: #2F8F6B; }
+.stat-card[data-tom="alerta"]   { border-left-color: #C94F2E; }
+.stat-card[data-tom="destaque"] { border-left-color: var(--eixo, var(--navy)); }
+
+.stat-val {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--navy);
+  letter-spacing: -0.01em;
+}
+.stat-val em {
+  font-family: inherit;
+  font-style: normal;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 3px;
+}
+.stat-lab {
+  margin-top: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #45506e;
+}
+.stat-exp {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.stat-exp strong { color: #45506e; font-weight: 600; }
+
+@media (max-width: 720px) {
+  .stat-cards { grid-template-columns: 1fr; }
+  .stat-val { font-size: 29px; }
+}
+
+/* ===========================================================================
+   Icone e fotos do eixo
+   =========================================================================== */
+
+.eixo-id { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.eixo-id .eyebrow { margin: 0; }
+
+.eixo-icone {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  flex: none;
+}
+
+
+@media (max-width: 720px) {
+  .eixo-icone { width: 44px; height: 44px; }
+}
+
+/* ===========================================================================
+   Foto dentro do bloco de resultado
+   A leitura ocupa a medida curta; a foto acompanha ao lado, mostrando o
+   metodo que produziu os numeros logo abaixo.
+   =========================================================================== */
+
+.bloco-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 2.5fr) minmax(0, 1fr);
+  gap: 22px;
+  /* `stretch`, nao `start`: a foto acompanha a altura da coluna de texto em
+     vez de impor a propria. Com 4:3 fixo ao lado de tres linhas de leitura
+     sobravam 170-220 px de vazio sob o paragrafo. */
+  align-items: stretch;
+}
+.bloco-intro .reading { margin: 0; }
+.bloco-corpo { display: flex; flex-direction: column; min-width: 0; }
+.bloco-corpo .stat-cards {
+  margin: 16px 0 0;
+  /* Mais estreito que o padrao: dentro da coluna os tres cartoes ainda cabem
+     lado a lado, em vez de quebrarem 2+1 e desalinharem do rodape da foto. */
+  grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
+}
+
+.bloco-foto figure {
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  background: #fff;
+}
+.bloco-foto img {
+  display: block;
+  width: 100%;
+  /* Cresce para ocupar o que sobra da coluna e recorta pelo centro; sem
+     altura imposta, nunca sobra faixa vazia nem embaixo nem ao lado. */
+  flex: 1;
+  min-height: 190px;
+  object-fit: cover;
+}
+.bloco-foto figcaption {
+  padding: 8px 11px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  .bloco-intro { grid-template-columns: 1fr; }
+}
+
+/* ===========================================================================
+   Barra de comparacao
+   =========================================================================== */
+
+.cmp-bar {
+  flex: none;
+  display: flex;
+  /* `flex-start`: com os grupos quebrando em duas linhas, `flex-end` empurrava
+     o seletor para baixo e os dois controles deixavam de se alinhar. */
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 11px 16px;
+  background: var(--offwhite);
+  border-bottom: 1px solid var(--line);
+}
+.cmp-bar[hidden] { display: none; }
+.cmp-bar label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 5px;
+  white-space: nowrap;
+}
+.cmp-campo { flex: none; width: 190px; }
+.cmp-grupos { flex: 1; min-width: 0; }
+
+/* O numero de sitios fica no proprio chip: escolher grupo sem saber de
+   quantos sitios ele e feito e escolher no escuro. */
+.cmp-grupos .chip em {
+  font-style: normal;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 7px;
+  background: rgba(53, 63, 124, 0.09);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-grupos .chip[aria-pressed="true"] em { background: rgba(255, 255, 255, 0.7); }
+
+.chip--toggle { white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .cmp-bar { gap: 10px; padding: 10px 12px; }
+  .cmp-campo { min-width: 140px; }
+}
+
+/* Enquanto o laço está ativo o cursor vira mira; o Leaflet repõe o seu
+   proprio cursor nos paineis, entao a regra precisa alcancar os filhos. */
+#map[style*="crosshair"] .leaflet-grab,
+#map[style*="crosshair"] .leaflet-interactive { cursor: crosshair; }
+
+/* Nota dentro do rotulo da barra de comparacao, quando o recorte nao
+   comporta dois grupos. */
+.cmp-nota { font-style: normal; text-transform: none; letter-spacing: 0; opacity: 0.85; }
+
+/* ------------------------------------------------------------------------- */
+/* Painel de taxons                                                          */
+/* ------------------------------------------------------------------------- */
+.tx-pick { display: grid; gap: 7px; margin-bottom: 12px; }
+
+.tx-busca {
+  width: 100%;
+  max-width: 320px;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 11px;
+  color: var(--text);
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.tx-busca:focus { outline: none; border-color: var(--navy); background: #fff; }
+.tx-busca::-webkit-search-cancel-button { cursor: pointer; }
+
+/* Nome cientifico em italico, como no resto do painel; o rotulo de familia
+   nao, porque familia nao se italiciza. */
+.tx-lista { max-height: 150px; }
+.tx-lista .chip.is-sp { font-style: italic; }
+
+/* A linha de grupo so aparece no boxplot, e ali ela e o que define o que
+   cada caixa representa -- fica separada dos chips do cabecalho. */
+.tx-grupo {
+  gap: 6px;
+  margin: 0 0 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+.tx-grupo .tx-grupo__lbl {
+  align-self: center;
+  margin-right: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tx-nota {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.tx-nota strong { color: var(--text); font-weight: 600; }
+.tx-nota .nota { display: block; margin-top: 4px; }

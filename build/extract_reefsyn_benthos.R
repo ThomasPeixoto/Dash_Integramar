@@ -42,7 +42,13 @@ suppressMessages({
   library(sf)
 })
 
-REEF_DIR <- path.expand("~/Área de trabalho/ReefSYN")
+## Raiz da fonte ReefSYN (DwC_output/ e _gis/). Padrao: a maquina local do
+## Thomas. No cluster, a copia certa fica em source/ReefSYN dentro do projeto:
+##   REEF_DIR=$PWD/source/ReefSYN Rscript build/extract_reefsyn.R
+## NAO aponte para ~/reefsyn_run/DwC_output do cluster: e uma versao ANTIGA e
+## diferente (sem I/DF_occ.csv, sem III/v2_2026) e produziria, sem erro algum,
+## um conjunto de dados errado.
+REEF_DIR <- path.expand(Sys.getenv("REEF_DIR", "~/Área de trabalho/ReefSYN"))
 DWC <- file.path(REEF_DIR, "DwC_output")
 OUT <- commandArgs(trailingOnly = TRUE)[1]
 if (is.na(OUT)) OUT <- "data/reefsyn_benthos.rds"
@@ -63,7 +69,25 @@ IBGE <- c(AP="Norte", PA="Norte",
           PB="Nordeste", PE="Nordeste", AL="Nordeste", SE="Nordeste", BA="Nordeste",
           ES="Sudeste", RJ="Sudeste", SP="Sudeste",
           PR="Sul", SC="Sul", RS="Sul")
-LIMITE_OCEANICA_KM <- 100
+## Ilhas oceanicas por COORDENADA, nao por distancia ate o estado: o geobr
+## trata Trindade/Martim Vaz como territorio do ES e Noronha como territorio de
+## PE, entao `dist_uf_km` desses sitios e ~0 e a regra antiga os mandava para o
+## litoral. Mesma lista de extract_reefsyn.R -- se mudar la, mude aqui.
+ILHAS_OCEANICAS <- list(
+  list(nome = "Fernando de Noronha",   lon = c(-32.50, -32.30), lat = c( -3.92,  -3.78)),
+  list(nome = "Atol das Rocas",        lon = c(-33.90, -33.70), lat = c( -3.92,  -3.78)),
+  list(nome = "São Pedro e São Paulo", lon = c(-29.40, -29.30), lat = c(  0.85,   1.05)),
+  list(nome = "Trindade e Martim Vaz", lon = c(-29.40, -28.80), lat = c(-20.65, -20.40))
+)
+
+arquipelago <- function(lon, lat) {
+  out <- rep(NA_character_, length(lon))
+  for (i in ILHAS_OCEANICAS) {
+    dentro <- lon >= i$lon[1] & lon <= i$lon[2] & lat >= i$lat[1] & lat <= i$lat[2]
+    out[dentro & is.na(out)] <- i$nome
+  }
+  out
+}
 
 
 ## Malha estadual: lida de data/estados_costeiros.gpkg, gravado uma vez por
@@ -87,8 +111,8 @@ atribui_uf <- function(dt) {
     dist_uf_km = round(as.numeric(
       sf::st_distance(pts, ufs[i, ], by_element = TRUE)) / 1000, 1)
   )]
-  dt[, region := fifelse(dist_uf_km > LIMITE_OCEANICA_KM,
-                         "Ilhas oceânicas", unname(IBGE[uf]))]
+  dt[, ilha := arquipelago(lon, lat)]
+  dt[, region := fifelse(!is.na(ilha), "Ilhas oceânicas", unname(IBGE[uf]))]
   dt[]
 }
 
@@ -207,9 +231,32 @@ stopifnot(
     abs(sum(tudo$cover) - sum(tudo[, sum(cover), by = ds]$V1)) < 1e-6
 )
 
+## ---- Unidades de conservacao -------------------------------------------------
+## Mesmo cruzamento espacial que extract_reefsyn.R faz para os sitios de peixe.
+## Sem ele os 141 sitios de bentos/coral ficavam sem vinculo com UC nenhuma, e
+## no painel apareciam todos como "fora de UC" -- o que impedia comparar
+## corais por nivel de protecao ou entre UCs, e, pior, afirmava algo falso.
+uc_shp <- sf::st_read(file.path(REEF_DIR, "_gis", "shp_cnuc_2025_08",
+                                "cnuc_2025_08.shp"), quiet = TRUE)
+uc_shp <- uc_shp[!is.na(uc_shp$marinho) & uc_shp$marinho > 0,
+                 c("cd_cnuc", "nome_uc", "categoria", "uf")]
+## `uf` existe nos dois lados -- o sitio ja recebeu o estado mais proximo em
+## atribui_uf(). Renomeamos o da UC antes do join; sem isso o sf devolve
+## uf.x/uf.y e o select seguinte quebra.
+names(uc_shp)[names(uc_shp) == "uf"] <- "uf_uc"
+uc_shp <- sf::st_transform(sf::st_make_valid(uc_shp), 4326)
+pts_b  <- sf::st_as_sf(sitios[, .(site_id, lon, lat)],
+                       coords = c("lon", "lat"), crs = 4326, remove = FALSE)
+site_uc_b <- as.data.table(sf::st_drop_geometry(
+  sf::st_join(pts_b, uc_shp, join = sf::st_within)))[!is.na(cd_cnuc)]
+site_uc_b <- site_uc_b[, .(site_id, cd_cnuc, nome_uc, categoria, uf = uf_uc)]
+msg("UCs: %d dos %d sitios de bentos dentro de alguma (%d UCs)",
+    uniqueN(site_uc_b$site_id), nrow(sitios), uniqueN(site_uc_b$cd_cnuc))
+
 saveRDS(list(
   sites         = sitios[, .(site_id, lon, lat, locality, region, uf, uf_nome,
                              dist_uf_km, datasets, n_eventos, ano_min, ano_max)],
+  site_uc       = site_uc_b,
   coral_sy_sp   = coral_sy_sp,
   coral_sy      = coral_sy,
   coral_summary = coral_summary,

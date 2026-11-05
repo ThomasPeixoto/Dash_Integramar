@@ -44,7 +44,7 @@ export const BENTHOS_SOURCES = [
 //   Eixo 1 #F76043 · Eixo 2 #982263 · Eixo 3 #353F7C · Eixo 4 #FDA749
 export const EIXOS = [
   {
-    id: 'eixo1', n: 1, color: '#F76043',
+    id: 'eixo1', icone: '11-icone-eixo-biodiversidade.webp', n: 1, color: '#F76043',
     short:  { pt: 'Biodiversidade',  en: 'Biodiversity' },
     title:  { pt: 'Biodiversidade, funcionamento e resiliência dos recifes',
               en: 'Reef biodiversity, functioning and resilience' },
@@ -55,7 +55,7 @@ export const EIXOS = [
     datasets: NATIONAL_DATASETS,
   },
   {
-    id: 'eixo2', n: 2, color: '#982263',
+    id: 'eixo2', icone: '12-icone-eixo-impactos.webp', n: 2, color: '#982263',
     short:  { pt: 'Impactos',  en: 'Impacts' },
     title:  { pt: 'Impactos locais, globais e sinérgicos',
               en: 'Local, global and synergistic impacts' },
@@ -66,7 +66,7 @@ export const EIXOS = [
     datasets: ['pollution'],
   },
   {
-    id: 'eixo3', n: 3, color: '#353F7C',
+    id: 'eixo3', icone: '13-icone-eixo-servicos.webp', n: 3, color: '#353F7C',
     short:  { pt: 'Serviços',  en: 'Services' },
     title:  { pt: 'Serviços ecossistêmicos',
               en: 'Ecosystem services' },
@@ -77,15 +77,12 @@ export const EIXOS = [
     datasets: ['productivity', 'fishers'],
   },
   {
-    id: 'eixo4', n: 4, color: '#FDA749',
+    id: 'eixo4', icone: '14-icone-eixo-gestao.webp', n: 4, color: '#FDA749',
     short:  { pt: 'Gestão',  en: 'Management' },
     title:  { pt: 'Subsídios à gestão e ao manejo',
               en: 'Evidence for management' },
-    lede: {
-      pt: 'Fernando de Noronha é dividida entre duas categorias de proteção: o Parque Nacional Marinho, de proteção integral, e a Área de Proteção Ambiental, de uso sustentável. Esta seção compara o que os dados mostram de um lado e de outro.',
-      en: 'Fernando de Noronha is split between two protection categories: the Marine National Park, fully protected, and the Environmental Protection Area, of sustainable use. This section compares what the data show on each side.',
-    },
-    datasets: ['fish', 'pollution'],
+    lede: { pt: '', en: '' },
+    datasets: [],
   },
 ];
 
@@ -224,10 +221,28 @@ export const MODE_VARS = {
 
 // Recortes do modo de GENERALIZAÇÃO na escala nacional: ao ligar um deles os
 // pontos somem e o valor passa a viver no polígono que os contém.
+// Duas intencoes diferentes que viviam num controle so:
+//
+//   contorno  -- mostrar ONDE as areas estao. Os pontos continuam, porque o
+//                limite e contexto para eles, nao substituto.
+//   geral     -- o valor passa a viver no POLIGONO. Ai os pontos somem mesmo:
+//                mante-los pintados sugeriria que cada sitio carrega o numero
+//                da area inteira, que e o oposto do que a generalizacao diz.
+//
+// O `modo` viaja junto com a opcao para que a escolha seja uma so na tela.
 export const NATIONAL_LAYERS = [
-  { v: 'none',    pt: 'Nenhum (pontos por sítio)', en: 'None (points per site)' },
-  { v: 'estados', pt: 'Por estado',                en: 'By state' },
-  { v: 'ucs',     pt: 'Por unidade de conservação', en: 'By protected area' },
+  { v: 'none', modo: 'contorno',
+    pt: 'Nenhum (apenas pontos)', en: 'None (points only)' },
+  { v: 'estados', modo: 'contorno',
+    pt: 'Limites dos estados', en: 'State boundaries' },
+  { v: 'ucs', modo: 'contorno',
+    pt: 'Limites das UCs', en: 'MPA boundaries' },
+  { v: 'estados', modo: 'geral',
+    pt: 'Generalizar por estado (sem os pontos)',
+    en: 'Generalise by state (points hidden)' },
+  { v: 'ucs', modo: 'geral',
+    pt: 'Generalizar por UC (sem os pontos)',
+    en: 'Generalise by MPA (points hidden)' },
 ];
 
 export const SPATIAL_LAYERS = [
@@ -252,6 +267,7 @@ const STRINGS = {
     q_e1_time: 'Como as comunidades mudam ao longo do tempo?',
     q_e2_map: 'Onde estão as áreas mais vulneráveis à poluição?',
     q_e2_rank: 'Quais sítios concentram os maiores valores?',
+    q_e2_param: 'O que foi medido, e onde há contraste entre sítios?',
     q_e3_rod: 'Qual é o papel dos bancos de rodolitos no ciclo do carbono?',
     q_e3_pesca: 'Que peixes comemos, e quanto o pescado pesa na alimentação?',
     q_e4_fish: 'A proteção integral se reflete nas comunidades de peixes?',
@@ -259,6 +275,19 @@ const STRINGS = {
     zone_parnamar: 'Parque Nacional Marinho',
     zone_apa: 'Área de Proteção Ambiental',
     chart_rod: 'Fluxos metabólicos por câmara',
+    chart_rod_dn: 'Dia e noite: de onde vem o saldo',
+    chart_rod_comp: 'Do que o banco é feito',
+    q_e3_quem: 'Quem vive da pesca aqui?',
+    chart_ocup: 'De que mais vivem',
+    chart_exper: 'Anos de pesca',
+    ocup_turism: 'Também no turismo', ocup_no: 'Só da pesca',
+    ocup_diver: 'Também mergulho', ocup_sem_resposta: 'Sem resposta',
+    cmp_on: 'Comparar conjuntos', draw_on: 'Desenhar área',
+    f_ferramentas: 'Ferramentas', cmp_by: 'Comparar por', cmp_pick: 'Grupos',
+    prot_integral: 'Proteção integral', prot_sustentavel: 'Uso sustentável',
+    prot_fora: 'Fora de UC', prot_outra: 'UC de categoria indefinida',
+    cmp_metric: 'Métrica', cmp_sem_grupos: 'Escolha ao menos dois grupos para comparar.',
+    cmp_um_grupo: 'só um grupo neste recorte; mostrando a série do conjunto',
     chart_consumo: 'Consumo semanal por tipo de alimento',
     chart_captura: 'Espécies citadas na captura',
     chart_rank: 'Valor médio por sítio',
@@ -282,6 +311,7 @@ const STRINGS = {
     lvl_archipelago: 'Arquipélago', lvl_zone: 'Zona', lvl_site: 'Sítio',
     lvl_brasil: 'Brasil', lvl_region: 'Região', lvl_uc: 'Unidade de Conservação',
     lvl_uf: 'Estado', all_ufs: 'Todos os estados', f_generalize: 'Generalizar por',
+    f_areas: 'Áreas no mapa',
     all_ucs: 'Todas as UCs', all_regions: 'Todas as regiões',
     mode_datasets: 'Conjuntos de dados', mode_benthos: 'Cobertura bentônica',
     mode_fish: 'Peixes recifais', mode_pollution: 'Poluição',
@@ -296,12 +326,44 @@ const STRINGS = {
     individuals: 'Indivíduos', censuses: 'Censos', quadrats: 'Fotoquadrantes',
     families: 'Famílias',
     year_range: 'Período', richness: 'Riqueza', cover: 'Cobertura',
+    // Dimensao da serie temporal quando ha um lugar selecionado
+    dim_label: 'Ver ao longo do tempo',
+    dim_params: 'Parâmetros', dim_family: 'Famílias', dim_species: 'Espécies',
+    dim_region: 'Por região',
+    recorte_brasil: 'Brasil inteiro',
+    limpar_recorte: 'Limpar seleção',
+    serie_de: 'Série de',
+    p_abundancia: 'Indivíduos por censo', p_riqueza: 'Riqueza (spp. por ano)',
+    p_familias: 'Nº de famílias', p_censos: 'Nº de censos',
+    p_coral_riqueza: 'Espécies de coral', p_coral_eventos: 'Nº de amostragens',
+    cmp_dim_protecao: 'Por proteção', cmp_dim_uc: 'Por UC',
+    cmp_dim_uf: 'Por estado', cmp_dim_region: 'Por região',
+    dim_geral: 'Visão geral',
+    // Painel de taxons
+    tx_title: 'Táxons escolhidos',
+    tx_nivel_species: 'Espécies', tx_nivel_family: 'Famílias',
+    tx_m_abund: 'Ind. por censo', tx_m_share: '% da assembleia',
+    tx_m_pres: 'Táxons presentes', tx_m_cover: '% da assembleia de coral',
+    tx_tipo_linha: 'Linha', tx_tipo_box: 'Boxplot',
+    tx_sem_grupo: 'Sem grupo',
+    tx_agrupar: 'Agrupar por',
+    tx_m_tl: 'Nível trófico',
+    // Painel de funcao da assembleia (biomassa, tamanho, nivel trofico)
+    fn_title: 'Biomassa, tamanho e nível trófico',
+    fn_m_bio: 'Biomassa', fn_m_len: 'Tamanho médio',
+    fn_m_tlab: 'Nível trófico · abundância', fn_m_tlbio: 'Nível trófico · biomassa',
+    fn_sem_dado: 'Sem dado de função para a seleção atual.',
+    tx_busca: 'filtrar…', tx_limite: 'até 8 por vez',
+    tx_vazio: 'Escolha ao menos um táxon na lista acima.',
+    tx_nada: 'Nenhum táxon registrado nos sítios desta seleção.',
+    tx_selecao: 'Seleção',
     download: 'Baixar CSV', loading: 'Carregando dados',
     table: 'Tabela', rows: 'linhas',
     restricted_note: 'Conjuntos não publicados',
     no_data: 'Sem dados para a seleção atual',
     all_zones: 'Todas as zonas', all_sites: 'Todos os sítios',
     orphan_reef: 'Recife mapeado — sem amostragem em 500 m',
+    em_construcao: 'Em construção',
   },
   en: {
     tab_map: 'Map', tab_temporal: 'Time Series',
@@ -314,6 +376,7 @@ const STRINGS = {
     q_e1_time: 'How do communities change over time?',
     q_e2_map: 'Where are the areas most vulnerable to pollution?',
     q_e2_rank: 'Which sites concentrate the highest values?',
+    q_e2_param: 'What was measured, and where do sites differ?',
     q_e3_rod: 'What is the role of rhodolith beds in the carbon cycle?',
     q_e3_pesca: 'Which fish are eaten, and how much does seafood weigh in the diet?',
     q_e4_fish: 'Is full protection reflected in the fish communities?',
@@ -321,6 +384,19 @@ const STRINGS = {
     zone_parnamar: 'Marine National Park',
     zone_apa: 'Environmental Protection Area',
     chart_rod: 'Metabolic fluxes per chamber',
+    chart_rod_dn: 'Day and night: where the balance comes from',
+    chart_rod_comp: 'What the bed is made of',
+    q_e3_quem: 'Who lives from fishing here?',
+    chart_ocup: 'What else they live on',
+    chart_exper: 'Years of fishing',
+    ocup_turism: 'Also in tourism', ocup_no: 'Fishing only',
+    ocup_diver: 'Also diving', ocup_sem_resposta: 'No answer',
+    cmp_on: 'Compare sets', draw_on: 'Draw an area',
+    f_ferramentas: 'Tools', cmp_by: 'Compare by', cmp_pick: 'Groups',
+    prot_integral: 'Full protection', prot_sustentavel: 'Sustainable use',
+    prot_fora: 'Outside any MPA', prot_outra: 'MPA, category unclear',
+    cmp_metric: 'Metric', cmp_sem_grupos: 'Pick at least two groups to compare.',
+    cmp_um_grupo: 'only one group in this selection; showing the set as a whole',
     chart_consumo: 'Weekly consumption by food type',
     chart_captura: 'Species named in the catch',
     chart_rank: 'Mean value per site',
@@ -344,6 +420,7 @@ const STRINGS = {
     lvl_archipelago: 'Archipelago', lvl_zone: 'Zone', lvl_site: 'Site',
     lvl_brasil: 'Brazil', lvl_region: 'Region', lvl_uc: 'Protected area',
     lvl_uf: 'State', all_ufs: 'All states', f_generalize: 'Generalise by',
+    f_areas: 'Areas on the map',
     all_ucs: 'All protected areas', all_regions: 'All regions',
     mode_datasets: 'Datasets', mode_benthos: 'Benthic cover',
     mode_fish: 'Reef fish', mode_pollution: 'Pollution',
@@ -358,12 +435,41 @@ const STRINGS = {
     individuals: 'Individuals', censuses: 'Censuses', quadrats: 'Photoquadrats',
     families: 'Families',
     year_range: 'Period', richness: 'Richness', cover: 'Cover',
+    dim_label: 'Over time, show',
+    dim_params: 'Parameters', dim_family: 'Families', dim_species: 'Species',
+    dim_region: 'By region',
+    recorte_brasil: 'All of Brazil',
+    limpar_recorte: 'Clear selection',
+    serie_de: 'Series for',
+    p_abundancia: 'Individuals per census', p_riqueza: 'Richness (spp. per year)',
+    p_familias: 'No. of families', p_censos: 'No. of censuses',
+    p_coral_riqueza: 'Coral species', p_coral_eventos: 'No. of surveys',
+    cmp_dim_protecao: 'By protection', cmp_dim_uc: 'By MPA',
+    cmp_dim_uf: 'By state', cmp_dim_region: 'By region',
+    dim_geral: 'Overview',
+    tx_title: 'Chosen taxa',
+    tx_nivel_species: 'Species', tx_nivel_family: 'Families',
+    tx_m_abund: 'Ind. per census', tx_m_share: '% of assemblage',
+    tx_m_pres: 'Taxa present', tx_m_cover: '% of coral assemblage',
+    tx_tipo_linha: 'Line', tx_tipo_box: 'Boxplot',
+    tx_sem_grupo: 'No grouping',
+    tx_agrupar: 'Group by',
+    tx_m_tl: 'Trophic level',
+    fn_title: 'Biomass, size and trophic level',
+    fn_m_bio: 'Biomass', fn_m_len: 'Mean size',
+    fn_m_tlab: 'Trophic level · abundance', fn_m_tlbio: 'Trophic level · biomass',
+    fn_sem_dado: 'No functional data for the current selection.',
+    tx_busca: 'filter…', tx_limite: 'up to 8 at a time',
+    tx_vazio: 'Pick at least one taxon in the list above.',
+    tx_nada: 'No taxon recorded at the sites in this selection.',
+    tx_selecao: 'Selection',
     download: 'Download CSV', loading: 'Loading data',
     table: 'Table', rows: 'rows',
     restricted_note: 'Unpublished datasets',
     no_data: 'No data for the current selection',
     all_zones: 'All zones', all_sites: 'All sites',
     orphan_reef: 'Mapped reef — no sampling within 500 m',
+    em_construcao: 'Under construction',
   },
 };
 
@@ -371,6 +477,234 @@ let LANG = 'pt';
 export const setLang = (l) => { LANG = l; };
 export const getLang = () => LANG;
 export const t = (k) => STRINGS[LANG][k] ?? STRINGS.pt[k] ?? k;
+
+// ---------------------------------------------------------------------------
+// Poluicao: parametros agrupados por MATRIZ e por familia
+//
+// A matriz vem primeiro porque os dois conjuntos sao DISJUNTOS: nenhum dos 48
+// parametros e medido em agua e em sedimento. Sao 8 so em agua (23 registros) e
+// 40 so em sedimento (21). Numa lista unica, trocar de parametro trocava em
+// silencio a matriz e o conjunto de sitios sob os pes de quem le.
+//
+// `total` marca a familia que soma a um total declarado -- e so nessas que uma
+// rosca de composicao significa alguma coisa. Metais nao tem total: somar Fe
+// (61.135) com Cd (0,65) numa rosca mostraria apenas o ferro.
+//
+// Unidades: as documentadas no projeto Shiny (mod_mapa.R). Os metais caem la
+// no `switch` padrao e recebem "uM", que nao e unidade de metal em sedimento;
+// aqui ficam SEM unidade ate que a fonte confirme, em vez de carregar o erro.
+// ---------------------------------------------------------------------------
+export const POLLUTION_GROUPS = [
+  {
+    matriz: 'Seawater', matrizPt: 'Água', matrizEn: 'Seawater',
+    familias: [
+      { id: 'fisquim', pt: 'Físico-químico', en: 'Physico-chemical', params: [
+        { v: 'Salinity',       pt: 'Salinidade',        en: 'Salinity',    unit: 'g/kg' },
+        { v: 'Temperature',    pt: 'Temperatura',       en: 'Temperature', unit: '°C' },
+        { v: 'pH Total Scale', pt: 'pH (escala total)', en: 'pH (total scale)', unit: '' },
+      ] },
+      // O DIN soma APENAS as tres especies de nitrogenio -- confirmado no dado,
+      // desvio 0,000 em 22 de 22 registros. O ortofosfato e fosforo e fica em
+      // familia propria: deixa-lo sob um cabecalho "Σ DIN" dizia que ele
+      // entrava na soma, e ele nao entra.
+      { id: 'nitro', pt: 'Nitrogênio inorgânico', en: 'Inorganic nitrogen', total: 'DIN', params: [
+        { v: 'Nitrite',       pt: 'Nitrito',       en: 'Nitrite',       unit: 'µM', parte: true },
+        { v: 'Nitrate',       pt: 'Nitrato',       en: 'Nitrate',       unit: 'µM', parte: true },
+        { v: 'N-Ammoniacal',  pt: 'N-amoniacal',   en: 'Ammonia-N',     unit: 'µM', parte: true },
+        { v: 'DIN',           pt: 'DIN',           en: 'DIN',           unit: 'µM' },
+      ] },
+      { id: 'fosforo', pt: 'Fósforo', en: 'Phosphorus', params: [
+        { v: 'Ortophosphate', pt: 'Ortofosfato',   en: 'Orthophosphate', unit: 'µM' },
+      ] },
+    ],
+  },
+  {
+    matriz: 'Sediment', matrizPt: 'Sedimento', matrizEn: 'Sediment',
+    familias: [
+      { id: 'metais', pt: 'Metais', en: 'Metals', params: [
+        { v: 'Aluminum (Al)', pt: 'Alumínio (Al)', en: 'Aluminium (Al)', unit: '' },
+        { v: 'Iron (Fe)',     pt: 'Ferro (Fe)',    en: 'Iron (Fe)',      unit: '' },
+        { v: 'Zinc (Zn)',     pt: 'Zinco (Zn)',    en: 'Zinc (Zn)',      unit: '' },
+        { v: 'Chromium (Cr)', pt: 'Cromo (Cr)',    en: 'Chromium (Cr)',  unit: '' },
+        { v: 'Copper (Cu)',   pt: 'Cobre (Cu)',    en: 'Copper (Cu)',    unit: '' },
+        { v: 'Nickel (Ni)',   pt: 'Níquel (Ni)',   en: 'Nickel (Ni)',    unit: '' },
+        { v: 'Lead (Pb)',     pt: 'Chumbo (Pb)',   en: 'Lead (Pb)',      unit: '' },
+        { v: 'Arsenic (As)',  pt: 'Arsênio (As)',  en: 'Arsenic (As)',   unit: '' },
+        { v: 'Cadmium (Cd)',  pt: 'Cádmio (Cd)',   en: 'Cadmium (Cd)',   unit: '' },
+      ] },
+      { id: 'hpa', pt: 'HPAs', en: 'PAHs', total: 'Total PAHs', params: [
+        { v: 'Total PAHs',             pt: 'HPAs totais',        en: 'Total PAHs' },
+        { v: 'Naphthalene',            pt: 'Naftaleno',          en: 'Naphthalene',            parte: true },
+        { v: 'Acenaphthylene',         pt: 'Acenaftileno',       en: 'Acenaphthylene',         parte: true },
+        { v: 'Acenaphthene',           pt: 'Acenafteno',         en: 'Acenaphthene',           parte: true },
+        { v: 'Fluorene',               pt: 'Fluoreno',           en: 'Fluorene',               parte: true },
+        { v: 'Phenanthrene',           pt: 'Fenantreno',         en: 'Phenanthrene',           parte: true },
+        { v: 'Anthracene',             pt: 'Antraceno',          en: 'Anthracene',             parte: true },
+        { v: 'Fluoranthene',           pt: 'Fluoranteno',        en: 'Fluoranthene',           parte: true },
+        { v: 'Pyrene',                 pt: 'Pireno',             en: 'Pyrene',                 parte: true },
+        { v: 'Benzo(a)anthracene',     pt: 'Benzo(a)antraceno',  en: 'Benzo(a)anthracene',     parte: true },
+        { v: 'Chrysene',               pt: 'Criseno',            en: 'Chrysene',               parte: true },
+        { v: 'Benzo(b)fluoranthene',   pt: 'Benzo(b)fluoranteno', en: 'Benzo(b)fluoranthene',  parte: true },
+        { v: 'Benzo(k)fluoranthene',   pt: 'Benzo(k)fluoranteno', en: 'Benzo(k)fluoranthene',  parte: true },
+        { v: 'Benzo(a)pyrene',         pt: 'Benzo(a)pireno',     en: 'Benzo(a)pyrene',         parte: true },
+        { v: 'Indeno(1,2,3-cd)pyrene', pt: 'Indeno(1,2,3-cd)pireno', en: 'Indeno(1,2,3-cd)pyrene', parte: true },
+        { v: 'Dibenzo(a,h)anthracene', pt: 'Dibenzo(a,h)antraceno', en: 'Dibenzo(a,h)anthracene', parte: true },
+        { v: 'Benzo(g,h,i)perylene',   pt: 'Benzo(g,h,i)perileno', en: 'Benzo(g,h,i)perylene', parte: true },
+      ].map((o) => ({ unit: 'ng/g', ...o })) },
+      { id: 'esterois', pt: 'Esteróis', en: 'Sterols', total: 'Total Sterols', params: [
+        { v: 'Total Sterols',  pt: 'Esteróis totais', en: 'Total sterols' },
+        { v: 'Coprostanol',    pt: 'Coprostanol',     en: 'Coprostanol',    parte: true },
+        { v: 'Epicoprostanol', pt: 'Epicoprostanol',  en: 'Epicoprostanol', parte: true },
+        { v: 'Cholesterol',    pt: 'Colesterol',      en: 'Cholesterol',    parte: true },
+        { v: 'Cholestanol',    pt: 'Colestanol',      en: 'Cholestanol',    parte: true },
+        { v: 'Coprostanone',   pt: 'Coprostanona',    en: 'Coprostanone',   parte: true },
+        { v: 'Ergosterol',     pt: 'Ergosterol',      en: 'Ergosterol',     parte: true },
+        { v: 'Campesterol',    pt: 'Campesterol',     en: 'Campesterol',    parte: true },
+        { v: 'Stigmasterol',   pt: 'Estigmasterol',   en: 'Stigmasterol',   parte: true },
+        { v: 'β-sitosterol',   pt: 'β-sitosterol',    en: 'β-sitosterol',   parte: true },
+        { v: 'Lanosterol',     pt: 'Lanosterol',      en: 'Lanosterol',     parte: true },
+        { v: 'Taraxerol',      pt: 'Taraxerol',       en: 'Taraxerol',      parte: true },
+        { v: 'Stigmastanol',   pt: 'Estigmastanol',   en: 'Stigmastanol',   parte: true },
+        { v: 'β-Amyrin',       pt: 'β-amirina',       en: 'β-Amyrin',       parte: true },
+      ].map((o) => ({ unit: 'µg/g', ...o })) },
+    ],
+  },
+];
+
+// O seletor do mapa e o contador do cabecalho liam `MODE_VARS.pollution`, que
+// tinha 10 dos 48 parametros: o cabecalho anunciava "10 parametros" enquanto o
+// painel listava 48, e escolher no painel um dos outros 38 deixava o seletor em
+// branco. Em vez de repetir a lista, MODE_VARS passa a derivar daqui -- uma
+// fonte so. Ja houve divergencia igual entre EIXOS e EIXO_MAP neste projeto.
+MODE_VARS.pollution.options = POLLUTION_GROUPS
+  .flatMap((m) => m.familias.flatMap((f) => f.params));
+
+/** Unidade declarada de um parametro de poluicao, ou '' quando nao ha fonte. */
+export const polUnit = (v) => {
+  for (const m of POLLUTION_GROUPS) for (const f of m.familias) {
+    const p = f.params.find((x) => x.v === v);
+    if (p) return p.unit ?? '';
+  }
+  return '';
+};
+
+/** Familia a que um parametro pertence, com a matriz junto. */
+export const polFamilia = (v) => {
+  for (const m of POLLUTION_GROUPS) for (const f of m.familias) {
+    if (f.params.some((x) => x.v === v)) return { ...f, matriz: m };
+  }
+  return null;
+};
+
+
+// Fotos que ilustram um RESULTADO especifico, e por isso moram dentro do
+// bloco dele em vez da faixa do cabecalho: a imagem mostra o metodo que
+// produziu os numeros ao lado.
+export const BLOCO_FOTOS = {
+  'e3-rod-foto': {
+    src: 'eixo3-carbono-azul-20260820.webp',
+    pt: 'Instalação de câmaras bentônicas em banco de rodolitos',
+    en: 'Installing benthic chambers on a rhodolith bed' },
+  'e3-pesca-foto': {
+    src: 'eixo3-entrevista-pescadores-20260820.webp',
+    pt: 'Entrevista com pescador artesanal sobre uso de recursos marinhos',
+    en: 'Interview with an artisanal fisher about marine resource use' },
+};
+
+// ---------------------------------------------------------------------------
+// Comparacao entre conjuntos de sitios
+//
+// A comparacao e SEMPRE dentro de um recorte, nunca sobre o pais inteiro: as
+// ilhas oceanicas nao tem nenhum sitio fora de UC, entao um "dentro x fora"
+// nacional mediria em parte ilha contra costa. Ver `avisosComparacao`.
+// ---------------------------------------------------------------------------
+export const CMP_CRITERIOS = [
+  { v: 'protecao', pt: 'Nível de proteção', en: 'Protection level' },
+  { v: 'uf',       pt: 'Estados',           en: 'States' },
+  { v: 'region',   pt: 'Regiões',           en: 'Regions' },
+  { v: 'uc',       pt: 'Unidades de conservação', en: 'Protected areas' },
+];
+
+/** Cores dos grupos de comparacao, estaveis entre graficos e mapa. */
+export const CMP_CORES = ['#353F7C', '#F76043', '#3C9BA5', '#FDA749', '#982263', '#6B7FC7'];
+
+// ---------------------------------------------------------------------------
+// Funcao da assembleia: biomassa, tamanho e nivel trofico por sitio-ano.
+//
+// Todos vem de `reef_fish_func`, calculada em build/extract_reefsyn.R com o
+// comprimento MEDIDO em campo (CT do eMOF) e os coeficientes e niveis troficos
+// de Quimbayo et al. 2021. `col` e a coluna da tabela; `casas` as decimais.
+//   bio   kg por censo de 40 m2 (x250 para kg/ha), so peixes osseos recifais
+//   len   comprimento total medio dos individuos, cm
+//   tl_*  nivel trofico medio ponderado pela abundancia ou pela biomassa
+// ---------------------------------------------------------------------------
+export const FN_METRICAS = [
+  { v: 'bio',    k: 'fn_m_bio',   col: 'bio_census', unidade: ' kg', casas: 1, escala: false },
+  { v: 'len',    k: 'fn_m_len',   col: 'len_mean',   unidade: ' cm', casas: 1, escala: false },
+  { v: 'tl_ab',  k: 'fn_m_tlab',  col: 'tl_ab',      unidade: '',    casas: 2, escala: true  },
+  { v: 'tl_bio', k: 'fn_m_tlbio', col: 'tl_bio',     unidade: '',    casas: 2, escala: true  },
+];
+
+// Metricas comparaveis por conjunto. Corais NAO tem cobertura aqui: o
+// `cover_total` vai de 0,1 a 690 porque o denominador (area amostrada) foi
+// removido na exportacao Darwin Core e cada dataset mede um universo -- o XVI
+// soma 650%. Contar especies de Scleractinia, que e o vocabulario comum aos
+// cinco datasets, se sustenta; somar cobertura entre eles nao.
+export const CMP_METRICAS = {
+  fish: [
+    { v: 'abundancia', k: 'p_abundancia' },
+    { v: 'riqueza',    k: 'p_riqueza' },
+    { v: 'familias',   k: 'p_familias' },
+    { v: 'censos',     k: 'p_censos' },
+    // Funcionais: derivadas de FN_METRICAS, para que o cartao de funcao, a
+    // tendencia e a comparacao falem das mesmas quatro variaveis com as mesmas
+    // unidades. `func` marca as que vem de `reef_fish_func`, nao de `reef_fish_year`.
+    ...FN_METRICAS.map((m) => ({ v: m.v, k: m.k, func: m })),
+  ],
+  coral: [
+    { v: 'coral_riqueza', k: 'p_coral_riqueza' },
+    { v: 'coral_eventos', k: 'p_coral_eventos' },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Painel de taxons
+//
+// A escolha de taxon muda de nivel por conjunto. Peixes tem familia (de
+// `fish_comp`, que cobre TODAS as familias) e especie (de `fish_year_sp`, que
+// cobre as 120 mais abundantes do pais). Corais so tem especie -- os cinco
+// datasets compartilham justamente o vocabulario de Scleractinia a especie.
+// ---------------------------------------------------------------------------
+export const TX_NIVEIS = {
+  fish:  [{ v: 'species', k: 'tx_nivel_species' }, { v: 'family', k: 'tx_nivel_family' }],
+  coral: [{ v: 'species', k: 'tx_nivel_species' }],
+};
+
+// `pres` conta quantos dos taxons ESCOLHIDOS aparecem -- e a unica leitura de
+// riqueza que estas tabelas sustentam. Riqueza por especie nao existe, e
+// riqueza DENTRO de uma familia exigiria o mapa especie -> familia completo,
+// que hoje cobre 106 das 119 especies.
+export const TX_METRICAS = {
+  fish:  [{ v: 'abund', k: 'tx_m_abund' },
+          { v: 'share', k: 'tx_m_share' },
+          { v: 'pres',  k: 'tx_m_pres' },
+          // Funcionais POR TAXON (tabelas reef_fish_func_fam/_sp, sob demanda).
+          // Biomassa e tamanho valem para especie e familia; o nivel trofico so
+          // para familia, porque o de uma especie e um traco fixo, sem serie no
+          // tempo -- seria uma linha reta.
+          { v: 'bio',   k: 'fn_m_bio', func: true, col: 'bio_kg',   unidade: ' kg', casas: 2 },
+          { v: 'len',   k: 'fn_m_len', func: true, col: 'len_mean', unidade: ' cm', casas: 1 },
+          { v: 'tl',    k: 'tx_m_tl',  func: true, col: 'tl_mean',  unidade: '',    casas: 2,
+            escala: true, soNivel: 'family' }],
+  // Corais ficam na fracao DENTRO da assembleia de coral: a cobertura
+  // absoluta nao e comparavel entre datasets (ver CMP_METRICAS).
+  coral: [{ v: 'share', k: 'tx_m_cover' },
+          { v: 'pres',  k: 'tx_m_pres' }],
+};
+
+/** Quantos taxons a paleta distingue sem repetir cor. */
+export const TX_MAX = 8;
+
 
 /** Rotulo de uma opcao { v, pt, en } no idioma ativo. */
 export const optLabel = (o) => o[LANG] ?? o.pt;

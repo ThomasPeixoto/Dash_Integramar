@@ -42,10 +42,19 @@ const siteName = (core, code) =>
 // ---------------------------------------------------------------------------
 
 export function readE1Map(core, state, sites) {
+  // Área desenhada: descreve o que foi circulado, e de que conjuntos ele é
+  // feito. Vem antes do ramo de generalização porque, ao circular pontos, os
+  // polígonos no mapa viram contexto -- quem lê quer saber do conjunto.
+  if (state.drawnSites?.length) return readE1Desenho(core, sites);
+
   // Modo de generalização: o valor vive no polígono, então a leitura tem que
   // falar de áreas. Descrever o intervalo entre SÍTIOS enquanto o mapa pinta
   // ESTADOS seria descrever outra figura.
-  if (state.scope === 'national' && state.layer && state.layer !== 'none') {
+  // So em GENERALIZACAO a leitura fala de areas: e ai que o valor vive no
+  // poligono. Em contorno os pontos continuam na tela, e descrever estados
+  // enquanto a pessoa ve sitios seria descrever outra figura.
+  if (state.scope === 'national' && state.layer && state.layer !== 'none'
+      && state.layerMode === 'geral') {
     return readE1Area(core, state);
   }
 
@@ -286,7 +295,7 @@ export function readE4Absent(core) {
  * Brasil": a composição geográfica muda a cada ano e uma média nacional
  * seria geografia disfarçada de tempo.
  */
-export function readE1Nacional(rows, rotulo = (g) => g) {
+export function readE1Nacional(rows, rotulo = (g) => g, { abundancia = true } = {}) {
   if (!rows.length) {
     return pt() ? 'Sem série de peixe para o recorte atual.'
                 : 'No fish series for the current selection.';
@@ -309,6 +318,13 @@ export function readE1Nacional(rows, rotulo = (g) => g) {
   if (regioes.length === 1) {
     const m = cobertura[0];
     const porCenso = sum(rows.map((r) => r.total)) / Math.max(1, m.n);
+    // A frase "média de N indivíduos por censo" só vale para a abundância; com
+    // biomassa, tamanho ou nível trófico ela diria uma métrica que não é a do gráfico.
+    if (!abundancia) {
+      return pt()
+        ? `${b(rotulo(m.g))}: ${b(plural(m.n, 'censo'))} em ${b(plural(m.anos, 'ano'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}.`
+        : `${b(rotulo(m.g))}: ${b(plural(m.n, 'census', 'censuses'))} over ${b(plural(m.anos, 'year'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}.`;
+    }
     return pt()
       ? `${b(rotulo(m.g))}: ${b(plural(m.n, 'censo'))} em ${b(plural(m.anos, 'ano'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, com média de ${b(fmtInt(porCenso))} indivíduos por censo.`
       : `${b(rotulo(m.g))}: ${b(plural(m.n, 'census', 'censuses'))} over ${b(plural(m.anos, 'year'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, averaging ${b(fmtInt(porCenso))} individuals per census.`;
@@ -436,4 +452,92 @@ function readE1Area(core, state) {
     ? `${b(rotulo)} em ${b(comDado.length)} ${tipo}: de ${b(fmt(baixo, 0) + unit)} em ${nomeDe(baixoK)} a ${b(fmt(alto, 0) + unit)} em ${b(nomeDe(altoK))}. Clique numa área para recortar o painel por ela.`
     : `${b(rotulo)} across ${b(comDado.length)} ${tipo}: from ${b(fmt(baixo, 0) + unit)} in ${nomeDe(baixoK)} to ${b(fmt(alto, 0) + unit)} in ${b(nomeDe(altoK))}. Click an area to filter the panel by it.`)
     + nota;
+}
+
+/**
+ * Leitura do painel de parametros. Diz de saida o que a lista suspensa
+ * escondia: agua e sedimento nao compartilham nenhum parametro, e por isso
+ * trocar de parametro pode trocar o conjunto de sitios sob os pes.
+ */
+export function readE2Param(core, grupos) {
+  const pol = core.pollution ?? [];
+  const sitios = new Set(pol.map((r) => r.Site)).size;
+  const nAgua = grupos[0].familias.reduce((a, f) => a + f.params.length, 0);
+  const nSed  = grupos[1].familias.reduce((a, f) => a + f.params.length, 0);
+
+  // Parametros que nao alcancam todos os sitios -- quase sempre por ficarem
+  // abaixo do limite de deteccao, nao por falta de coleta.
+  const parciais = grupos.flatMap((m) => m.familias.flatMap((f) => f.params))
+    .map((o) => [o, new Set(pol.filter((r) => Number.isFinite(r[o.v])).map((r) => r.Site)).size])
+    .filter(([, n]) => n > 0 && n < sitios)
+    .sort((a, b2) => a[1] - b2[1]);
+
+  const pt = getLang() === 'pt';
+  const nome = (o) => (pt ? o.pt : o.en);
+  const ressalva = parciais.length
+    ? (pt
+      ? ` Dois não alcançam todos: ${parciais.map(([o, n]) => `${b(nome(o))} (${n})`).join(' e ')}, `
+        + `por ficarem abaixo do limite de detecção na maioria das amostras.`
+      : ` Two fall short: ${parciais.map(([o, n]) => `${b(nome(o))} (${n})`).join(' and ')}, `
+        + `because they sit below the detection limit in most samples.`)
+    : '';
+
+  return pt
+    ? `${b(nAgua + ' parâmetros')} em água e ${b(nSed)} em sedimento — e ${b('nenhum')} medido nas duas matrizes, `
+      + `então as duas metades do painel não se comparam entre si. `
+      + `Quase todos cobrem os ${b(plural(sitios, 'sítio'))}.${ressalva} `
+      + `A faixa de cada linha vai do menor ao maior sítio, com a mediana marcada: `
+      + `quanto mais a marca se afasta do centro, mais assimétrica é a distribuição entre sítios.`
+    : `${b(nAgua + ' parameters')} in seawater and ${b(nSed)} in sediment — and ${b('none')} measured in both matrices, `
+      + `so the two halves of the panel are not comparable with each other. `
+      + `Almost all cover the ${b(sitios)} sites.${ressalva} `
+      + `Each row's strip runs from the lowest to the highest site, with the median marked: `
+      + `the further the mark sits from the centre, the more skewed the distribution across sites.`;
+}
+
+/**
+ * Leitura da área circulada. Diz de quantos sítios ela é feita E de que
+ * conjuntos: circular 74 pontos e ver uma comparação que soma 56 deixa a
+ * diferença sem explicação -- são os sítios que não têm peixe.
+ */
+function readE1Desenho(core, sites) {
+  const n = sites.length;
+  if (!n) {
+    return pt()
+      ? 'Nenhum sítio dentro da área desenhada. Desenhe em volta dos pontos.'
+      : 'No site inside the drawn area. Draw around the points.';
+  }
+  const conta = (ds) => sites.filter((s) => s[`has_${ds}`]).length;
+  const peixe = conta('fish');
+  const coral = conta('coral');
+  const bent = conta('benthos');
+  const regioes = [...new Set(sites.map((s) => s.region).filter(Boolean))];
+
+  const partes = [];
+  if (peixe) partes.push(`${b(peixe)} de peixes`);
+  if (coral) partes.push(`${b(coral)} de corais`);
+  if (bent) partes.push(`${b(bent)} de bentos`);
+  const partesEn = [];
+  if (peixe) partesEn.push(`${b(peixe)} fish`);
+  if (coral) partesEn.push(`${b(coral)} coral`);
+  if (bent) partesEn.push(`${b(bent)} benthos`);
+
+  const faltando = [];
+  if (!coral) faltando.push(pt() ? 'corais' : 'coral');
+  if (!bent) faltando.push(pt() ? 'bentos' : 'benthos');
+  const ressalva = faltando.length
+    ? (pt()
+      ? ` Nenhum sítio de ${serie(faltando)} nesta área — esses conjuntos não entram nas estatísticas abaixo.`
+      : ` No ${serie(faltando)} site in this area — those layers are absent from the figures below.`)
+    : '';
+
+  const espalhado = regioes.length > 1
+    ? (pt()
+      ? ` A área atravessa ${serie(regioes)}, que são comunidades distintas.`
+      : ` The area spans ${serie(regioes)}, which are distinct communities.`)
+    : '';
+
+  return pt()
+    ? `Área desenhada com ${b(plural(n, 'sítio'))}: ${serie(partes)}.${ressalva}${espalhado}`
+    : `Drawn area with ${b(n)} site(s): ${serie(partesEn)}.${ressalva}${espalhado}`;
 }

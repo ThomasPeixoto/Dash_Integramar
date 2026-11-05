@@ -13,3 +13,6 @@ public/data/tables/restricted/
 # build, nao fonte: o script rebaixa. O site consome a versao simplificada em
 # public/data/geo/estados.geojson.
 data/estados_costeiros.gpkg
+
+# Fonte ReefSYN copiada para o cluster (~400 MB): so existe la, nunca no git.
+source/
