@@ -2874,10 +2874,22 @@ const chaveSelecao = () => {
 };
 
 function wireProfile() {
+  // Fechar o perfil, de um estado, de uma UC ou de um sitio, DESFAZ a selecao e
+  // devolve o mapa ao inicio: todos os pontos e poligonos de novo clicaveis. Antes
+  // so se escondia o painel, e o mapa seguia recortado no lugar que a pessoa ja
+  // tinha visto -- sem caminho de volta que nao fosse pelo seletor ou pela trilha.
+  // E o mesmo estado que o segundo clique num sitio ja produz (map.js). A camada
+  // escolhida (estados, UCs) fica: sao justamente as "selecoes possiveis".
   $('#profile-close').onclick = () => {
-    if (store.get('selectedSite')) store.set('selectedSite', null);
-    perfilDispensadoEm = chaveSelecao();
+    store.set({
+      selectedSite: null, selectedDataset: null,
+      level: 'archipelago', site: null, zone: null, uf: null, uc: null,
+    });
+    // Nada a suprimir: a selecao que o painel reabriria nao existe mais, e guardar
+    // a chave antiga impediria o painel de abrir se a mesma area fosse escolhida de novo.
+    perfilDispensadoEm = null;
     $('#profile').removeAttribute('data-open');
+    syncControlValues();
   };
 }
 

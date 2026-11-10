@@ -333,7 +333,7 @@ async function renderAreas(layer, geracao) {
   const chave = nome === 'estados' ? 'uf' : 'cd_cnuc';
   const rotuloDe = (p) => nome === 'estados' ? tituloUC(p.uf_nome ?? p.uf) : tituloUC(p.nome_uc);
 
-  L.geoJSON(geoCache[nome], {
+  const camada = L.geoJSON(geoCache[nome], {
     style: (f) => {
       const v = values.get(f.properties[chave]);
       const temDado = Number.isFinite(v);
@@ -371,11 +371,18 @@ async function renderAreas(layer, geracao) {
           ? { level: 'uf', uf: k, zone: null, uc: null, site: null }
           : { level: 'uc', uc: tituloUC(p.nome_uc), zone: null, uf: null, site: null });
       });
-      lyr.on('mouseover', () => lyr.setStyle({ weight: 2.4, fillOpacity: 0.9 }));
-      lyr.on('mouseout',  () => lyr.setStyle({ weight: Number.isFinite(v) ? 1.2 : 0.8,
-                                               fillOpacity: Number.isFinite(v) ? 0.78 : 0.25 }));
+      // O realce do hover tem de respeitar o MODO. Em contorno/comparacao o
+      // poligono e so contexto (preenchimento 0,07); subir para 0,9 o pintava de
+      // azul solido, e o mouseout "restaurava" para 0,78 -- o valor do modo
+      // coropletico --, entao o estado ficava azul para sempre. O mouseout agora
+      // devolve o estilo que a propria camada calculou, seja qual for o modo.
+      const contexto = corDeGrupo || store.get('layerMode') !== 'geral';
+      lyr.on('mouseover', () => lyr.setStyle(
+        contexto ? { weight: 2.2, fillOpacity: 0.2 } : { weight: 2.4, fillOpacity: 0.9 }));
+      lyr.on('mouseout', () => camada.resetStyle(lyr));
     },
-  }).addTo(polyLayer);
+  });
+  camada.addTo(polyLayer);
 
   if (!corDeGrupo && store.get('layerMode') === 'geral') {
     addLegendContinuous(varLabel(mode, campo), domain, RAMP[mode] ?? RAMP.datasets, unit);
