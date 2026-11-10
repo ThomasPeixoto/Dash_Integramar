@@ -34,6 +34,12 @@ const FIXED = {
   'Soft Substrate':      '#C9B79C',
   'Cyanobacteria':       '#6B7FC7',
   'Unclassified':        '#A8B2C8',
+  // Niveis de protecao: as mesmas tres cores da comparacao (CMP_CORES) e do
+  // mapa, para que "Protecao integral" tenha uma cor so em toda a plataforma.
+  'integral':            '#353F7C',
+  'sustentavel':         '#F76043',
+  'fora':                '#3C9BA5',
+  'outra':               '#A8B2C8',
 };
 
 const colorFor = (() => {
@@ -168,10 +174,14 @@ function aggregate(rows, { stat = 'mean' } = {}) {
  * o que define a cor (colorFor) e o que identifica a serie internamente, para
  * que trocar de idioma nao troque as cores do grafico.
  */
-export function trendOption(rows, { type = 'lines', unit = '', nameOf = (g) => g, escala = false } = {}) {
+export function trendOption(rows, { type = 'lines', unit = '', nameOf = (g) => g, escala = false,
+                                    ordem = null } = {}) {
   const agg = aggregate(rows);
   const years = uniq(agg.map((r) => r.Year)).sort((a, b) => a - b);
-  const groups = uniq(agg.map((r) => r.group)).sort();
+  // `ordem` fixa a ordem dos grupos (integral -> sustentavel -> fora); sem ela,
+  // alfabetica, que para esses nomes poria "Fora de UC" antes de "Protecao integral".
+  const presentes = uniq(agg.map((r) => r.group));
+  const groups = ordem ? ordem.filter((g) => presentes.includes(g)) : presentes.sort();
   const at = (g, y) => agg.find((r) => r.group === g && r.Year === y);
 
   if (type === 'area') {
@@ -499,10 +509,13 @@ export function boxTaxaOption({ categorias, grupos, valores, unidade = '',
 // 3. Mapa de calor ano x grupo
 // ---------------------------------------------------------------------------
 
-export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g, { escala = false } = {}) {
+export function heatmapOption(rows, ramp, unit = '', nameOf = (g) => g, { escala = false, ordem = null } = {}) {
   const agg = aggregate(rows);
   const years = uniq(agg.map((r) => r.Year)).sort((a, b) => a - b);
-  const groups = uniq(agg.map((r) => r.group)).sort().reverse();
+  // O eixo de categorias lista de baixo para cima; invertido, a primeira de `ordem`
+  // fica no topo.
+  const presentes = uniq(agg.map((r) => r.group));
+  const groups = (ordem ? ordem.filter((g) => presentes.includes(g)) : presentes.sort()).reverse();
 
   const data = [];
   let max = 0, min = Infinity;

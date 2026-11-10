@@ -2,14 +2,13 @@
 // Escala nacional (ReefSYN)
 //
 // Normaliza as tabelas do ReefSYN para a MESMA forma que as de Noronha já
-// têm — `Site`, `site_label`, `zone`, `has_*` e um par de coordenadas por
-// conjunto. Assim o mapa, os filtros e o perfil do sítio funcionam nas duas
-// escalas sem ramificar a lógica em todo lugar: o que muda é de onde as
-// linhas vêm, não o que elas são.
+// têm — `Site`, `site_label`, `has_*` e um par de coordenadas por conjunto.
+// Assim o mapa, os filtros e o perfil do sítio funcionam nas duas escalas sem
+// ramificar a lógica em todo lugar: o que muda é de onde as linhas vêm, não o
+// que elas são.
 //
-// A região entra no lugar da `zone` de Noronha porque cumpre o mesmo papel —
-// o nível intermediário da hierarquia — e porque é a estratificação que a
-// série temporal exige: a composição geográfica do "Brasil" muda a cada ano.
+// A hierarquia nacional é Brasil > estado > UC > sítio. Não há nível de região:
+// foi removido a pedido, e os sítios não carregam mais esse campo.
 // ===========================================================================
 
 import { uniq } from './data.js';
@@ -72,7 +71,6 @@ export function buildNational(core) {
       Site: s.site_id,
       site_label: humanize(s.locality) || humanize(s.location) || s.site_id,
       location: humanize(s.location),
-      zone: s.region, zone_label: s.region, region: s.region,
       ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null,
       // `uf` é o código de duas letras do estado mais próximo, calculado no R.
       // O `uf` que vem da UC é o nome por extenso do estado DELA e não serve
@@ -99,7 +97,6 @@ export function buildNational(core) {
       Site: b.site_id,
       site_label: humanize(b.locality) || b.site_id,
       location: humanize(b.locality),
-      zone: b.region, zone_label: b.region, region: b.region,
       ucs, uc_name: ucs[0]?.nome ?? null, uc_cat: ucs[0]?.cat ?? null,
       uf: b.uf ?? null, uf_nome: b.uf_nome ?? null, uc_uf: ucs[0]?.uf ?? null,
       has_fish: false, has_coral: temCoral, has_benthos: temCom,
@@ -126,9 +123,6 @@ export function buildNational(core) {
       Site: `N_${s.Site}`,
       site_label: s.site_label,
       location: 'Fernando de Noronha',
-      // Noronha fica a ~350 km da costa: entra em "Ilhas oceânicas", como
-      // os demais sítios insulares, e não no litoral de Pernambuco.
-      zone: 'Ilhas oceânicas', zone_label: 'Ilhas oceânicas', region: 'Ilhas oceânicas',
       island: 'Fernando de Noronha', benthos_ds: 'Noronha',
       ucs: [], uc_name: null, uc_cat: null, uf: 'PE', uf_nome: 'Pernambuco',
       has_fish: false, has_coral: false, has_benthos: true,
@@ -141,7 +135,6 @@ export function buildNational(core) {
   return {
     sites,
     coords,
-    regions: uniq(sites.map((s) => s.region)).sort(),
     ucs: uniq(sites.flatMap((s) => s.ucs.map((u) => u.nome))).sort(),
   };
 }
@@ -176,14 +169,3 @@ export function nivelProtecao(site) {
   // entra como "fora" -- isso a contaria como desprotegida.
   return 'outra';
 }
-
-/** Ordem geográfica, norte -> sul, com as ilhas oceânicas por último. */
-export const REGION_ORDER = ['Norte', 'Nordeste', 'Sudeste', 'Sul', 'Ilhas oceânicas'];
-
-export const REGION_LABEL = {
-  'Norte':           { pt: 'Norte',           en: 'North' },
-  'Nordeste':        { pt: 'Nordeste',        en: 'Northeast' },
-  'Sudeste':         { pt: 'Sudeste',         en: 'Southeast' },
-  'Sul':             { pt: 'Sul',             en: 'South' },
-  'Ilhas oceânicas': { pt: 'Ilhas oceânicas', en: 'Oceanic islands' },
-};

@@ -290,10 +290,10 @@ export function readE4Absent(core) {
 // ---------------------------------------------------------------------------
 
 /**
- * Lê a série nacional SEM agregá-la. A frase diz quantas regiões a seleção
- * cobre e o que cada extremo mostra, mas nunca afirma uma tendência "do
- * Brasil": a composição geográfica muda a cada ano e uma média nacional
- * seria geografia disfarçada de tempo.
+ * Lê a série nacional por nível de proteção, sem agregá-la numa linha só. A frase
+ * diz quantos censos há em cada nível e que anos cada um cobre -- é o que mostra
+ * que as linhas não descrevem os mesmos lugares nem os mesmos anos -- e nunca
+ * afirma uma tendência "do Brasil".
  */
 export function readE1Nacional(rows, rotulo = (g) => g, { abundancia = true } = {}) {
   if (!rows.length) {
@@ -302,37 +302,42 @@ export function readE1Nacional(rows, rotulo = (g) => g, { abundancia = true } = 
   }
 
   const anos = uniq(rows.map((r) => r.Year)).sort((a, b) => a - b);
-  const regioes = uniq(rows.map((r) => r.group));
+  const grupos = uniq(rows.map((r) => r.group));
   const censos = sum(rows.map((r) => r.n_events));
 
-  // Cobertura temporal de cada região: é o que explica por que não se agrega.
-  const cobertura = regioes.map((g) => {
+  // Cobertura de cada nível: censos, sítios e faixa de anos.
+  const cobertura = grupos.map((g) => {
     const rs = rows.filter((r) => r.group === g);
     const a = uniq(rs.map((r) => r.Year)).sort((x, y) => x - y);
-    return { g, n: sum(rs.map((r) => r.n_events)), ini: a[0], fim: a[a.length - 1], anos: a.length };
+    return { g, n: sum(rs.map((r) => r.n_events)), sitios: uniq(rs.map((r) => r.Site)).length,
+             ini: a[0], fim: a[a.length - 1], anos: a.length };
   }).sort((a, b) => b.n - a.n);
 
   const maior = cobertura[0];
   const parteMaior = Math.round(100 * maior.n / censos);
 
-  if (regioes.length === 1) {
+  if (grupos.length === 1) {
     const m = cobertura[0];
     const porCenso = sum(rows.map((r) => r.total)) / Math.max(1, m.n);
     // A frase "média de N indivíduos por censo" só vale para a abundância; com
     // biomassa, tamanho ou nível trófico ela diria uma métrica que não é a do gráfico.
     if (!abundancia) {
       return pt()
-        ? `${b(rotulo(m.g))}: ${b(plural(m.n, 'censo'))} em ${b(plural(m.anos, 'ano'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}.`
-        : `${b(rotulo(m.g))}: ${b(plural(m.n, 'census', 'censuses'))} over ${b(plural(m.anos, 'year'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}.`;
+        ? `${b(rotulo(m.g))}: ${b(plural(m.n, 'censo'))} em ${b(plural(m.sitios, 'sítio'))}, ${b(plural(m.anos, 'ano'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}.`
+        : `${b(rotulo(m.g))}: ${b(plural(m.n, 'census', 'censuses'))} at ${b(plural(m.sitios, 'site'))}, ${b(plural(m.anos, 'year'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}.`;
     }
     return pt()
-      ? `${b(rotulo(m.g))}: ${b(plural(m.n, 'censo'))} em ${b(plural(m.anos, 'ano'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, com média de ${b(fmtInt(porCenso))} indivíduos por censo.`
-      : `${b(rotulo(m.g))}: ${b(plural(m.n, 'census', 'censuses'))} over ${b(plural(m.anos, 'year'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, averaging ${b(fmtInt(porCenso))} individuals per census.`;
+      ? `${b(rotulo(m.g))}: ${b(plural(m.n, 'censo'))} em ${b(plural(m.sitios, 'sítio'))}, ${b(plural(m.anos, 'ano'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, com média de ${b(fmtInt(porCenso))} indivíduos por censo.`
+      : `${b(rotulo(m.g))}: ${b(plural(m.n, 'census', 'censuses'))} at ${b(plural(m.sitios, 'site'))}, ${b(plural(m.anos, 'year'))}${m.anos > 1 ? ` (${m.ini}–${m.fim})` : ` (${m.ini})`}, averaging ${b(fmtInt(porCenso))} individuals per census.`;
   }
 
+  // Os níveis só são comparáveis ano a ano onde cobrem os mesmos anos; quando as
+  // faixas diferem, isso é dito, não escondido.
+  const faixasIguais = cobertura.every((c) => c.ini === cobertura[0].ini && c.fim === cobertura[0].fim);
+  const lista = cobertura.map((c) => `${b(rotulo(c.g))} ${b(fmtInt(c.n))}`).join(' · ');
   return pt()
-    ? `${b(fmtInt(censos))} censos em ${b(regioes.length)} regiões, de ${b(anos[0])} a ${b(anos[anos.length - 1])}. ${b(rotulo(maior.g))} responde por ${b(parteMaior + '%')} deles e cobre ${maior.ini}–${maior.fim}; as demais entram e saem ao longo do período. Por isso cada região é uma linha própria: uma média nacional mudaria junto com quem foi amostrado naquele ano, não com os peixes.`
-    : `${b(fmtInt(censos))} censuses across ${b(regioes.length)} regions, from ${b(anos[0])} to ${b(anos[anos.length - 1])}. ${b(rotulo(maior.g))} accounts for ${b(parteMaior + '%')} of them and spans ${maior.ini}–${maior.fim}; the others come and go across the period. That is why each region is its own line: a national average would move with who was sampled that year, not with the fish.`;
+    ? `${b(fmtInt(censos))} censos de ${b(anos[0])} a ${b(anos[anos.length - 1])}, por nível de proteção: ${lista}. ${b(rotulo(maior.g))} responde por ${b(parteMaior + '%')} deles. ${faixasIguais ? 'Os níveis cobrem os mesmos anos, mas' : 'Os níveis cobrem anos diferentes e'} os sítios amostrados em cada um mudam de ano para ano — uma linha não descreve sempre os mesmos lugares.`
+    : `${b(fmtInt(censos))} censuses from ${b(anos[0])} to ${b(anos[anos.length - 1])}, by protection level: ${lista}. ${b(rotulo(maior.g))} accounts for ${b(parteMaior + '%')} of them. ${faixasIguais ? 'The levels cover the same years, but' : 'The levels cover different years and'} the sites sampled in each change from year to year — a line does not always describe the same places.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,8 +348,8 @@ export function readE1Nacional(rows, rotulo = (g) => g, { abundancia = true } = 
  * Corais: a composição relativa dentro da assembleia é válida mesmo sem o
  * denominador, porque a fração removida pela exportação Darwin Core (substrato,
  * sedimento, turf) é a mesma para todos os táxons do evento e some na razão.
- * A frase diz quantas regiões a seleção cobre, porque a composição muda muito
- * entre elas e uma leitura "do Brasil" seria geografia disfarçada.
+ * A frase diz quantos estados a seleção cobre, porque a composição muda entre
+ * eles e uma leitura "do Brasil" seria geografia disfarçada.
  */
 export function readE1Corais(core, rows, alvo) {
   if (!rows.length) {
@@ -354,8 +359,9 @@ export function readE1Corais(core, rows, alvo) {
 
   const anos = uniq(rows.map((r) => r.Year)).sort((a, b) => a - b);
   const sitios = uniq(rows.map((r) => r.Site));
-  const regioes = uniq(sitios
-    .map((c) => (core.national?.sites ?? []).find((s) => s.Site === c)?.region)
+  const estados = uniq(sitios
+    .map((c) => { const x = (core.national?.sites ?? []).find((s) => s.Site === c);
+                  return x ? tituloUC(x.uf_nome ?? x.uf) : null; })
     .filter(Boolean));
 
   // Espécie dominante no último ano com registro.
@@ -365,18 +371,18 @@ export function readE1Corais(core, rows, alvo) {
     .sort((a, b) => b[1] - a[1]);
   const esp = uniq(rows.map((r) => r.group)).length;
 
-  const alcance = regioes.length > 1
-    ? (pt() ? `${b(regioes.length)} regiões` : `${b(regioes.length)} regions`)
-    : (pt() ? `a região de ${b(regioes[0] ?? '—')}` : `the ${b(regioes[0] ?? '—')} region`);
+  const alcance = estados.length > 1
+    ? (pt() ? `${b(estados.length)} estados` : `${b(estados.length)} states`)
+    : (pt() ? `o estado ${b(estados[0] ?? '—')}` : `the state of ${b(estados[0] ?? '—')}`);
 
   const base = pt()
     ? `${b(esp)} espécies de coral em ${b(sitios.length)} sítios, cobrindo ${alcance}, de ${b(anos[0])} a ${b(ultimo)}. Em ${ultimo}, ${b(porSp[0][0])} responde por ${b(fmt(porSp[0][1], 1) + '%')} da assembleia.`
     : `${b(esp)} coral species at ${b(sitios.length)} sites, spanning ${alcance}, from ${b(anos[0])} to ${b(ultimo)}. In ${ultimo}, ${b(porSp[0][0])} accounts for ${b(fmt(porSp[0][1], 1) + '%')} of the assemblage.`;
 
   // A ressalva só aparece quando de fato se aplica.
-  const ressalva = regioes.length > 1
-    ? (pt() ? ' São percentuais DENTRO da assembleia de coral, não cobertura do fundo — a exportação Darwin Core não traz substrato nem turf. E a composição difere muito entre regiões: escolha uma para ler tendência.'
-            : ' These are percentages WITHIN the coral assemblage, not cover of the substrate — the Darwin Core export carries neither substrate nor turf. Composition also differs sharply among regions: pick one to read a trend.')
+  const ressalva = estados.length > 1
+    ? (pt() ? ' São percentuais DENTRO da assembleia de coral, não cobertura do fundo — a exportação Darwin Core não traz substrato nem turf. E a composição difere entre estados: escolha um para ler tendência.'
+            : ' These are percentages WITHIN the coral assemblage, not cover of the substrate — the Darwin Core export carries neither substrate nor turf. Composition also differs among states: pick one to read a trend.')
     : (pt() ? ' São percentuais dentro da assembleia de coral, não cobertura do fundo.'
             : ' These are percentages within the coral assemblage, not cover of the substrate.');
 
@@ -511,7 +517,7 @@ function readE1Desenho(core, sites) {
   const peixe = conta('fish');
   const coral = conta('coral');
   const bent = conta('benthos');
-  const regioes = [...new Set(sites.map((s) => s.region).filter(Boolean))];
+  const estados = [...new Set(sites.map((s) => tituloUC(s.uf_nome ?? s.uf)).filter(Boolean))];
 
   const partes = [];
   if (peixe) partes.push(`${b(peixe)} de peixes`);
@@ -531,10 +537,10 @@ function readE1Desenho(core, sites) {
       : ` No ${serie(faltando)} site in this area — those layers are absent from the figures below.`)
     : '';
 
-  const espalhado = regioes.length > 1
+  const espalhado = estados.length > 1
     ? (pt()
-      ? ` A área atravessa ${serie(regioes)}, que são comunidades distintas.`
-      : ` The area spans ${serie(regioes)}, which are distinct communities.`)
+      ? ` A área atravessa ${b(estados.length)} estados (${serie(estados)}).`
+      : ` The area spans ${b(estados.length)} states (${serie(estados)}).`)
     : '';
 
   return pt()

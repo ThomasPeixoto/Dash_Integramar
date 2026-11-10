@@ -9,7 +9,7 @@
 
 import { loadCore, loadTable, fmtInt, fmt, uniq, sum, mean, groupBy, topN } from './data.js';
 import { createStore } from './store.js';
-import { buildNational, REGION_LABEL, REGION_ORDER, tituloUC, nivelProtecao, PROTECAO } from './national.js';
+import { buildNational, tituloUC, nivelProtecao, PROTECAO } from './national.js';
 
 /** geobr devolve "Rio Grande Do Norte"; as partículas vão em minúscula. */
 const tituloUF = (s) => tituloUC(s ?? '');
@@ -57,7 +57,7 @@ for (const [id, cfg] of Object.entries(EIXO_MAP)) cfg.datasets = eixoById(id).da
 
 // Estado de mapa lembrado por eixo, para que voltar a um eixo não perca o
 // modo e a variável que estavam escolhidos lá.
-// Guarda tambem o RECORTE (nivel, regiao, UF, UC, sitio). Antes so guardava
+// Guarda tambem o RECORTE (nivel, UF, UC, sitio). Antes so guardava
 // modo/variavel/camada, e trocar de aba zerava a selecao: escolher uma UC no
 // eixo 1, dar uma olhada no eixo 2 e voltar devolvia o mapa ao Brasil inteiro,
 // sem aviso. Quem navega entre eixos esta comparando o MESMO lugar.
@@ -73,7 +73,6 @@ const eixoState = {
            selectedSite: null },
 };
 
-const regionLabel = (r) => REGION_LABEL[r]?.[getLang()] ?? r;
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -89,7 +88,7 @@ const regionLabel = (r) => REGION_LABEL[r]?.[getLang()] ?? r;
 
   core.national = buildNational(core);
   if (core.national) {
-    msgNacional = `${core.national.sites.length} sítios · ${core.national.regions.length} regiões`;
+    msgNacional = `${core.national.sites.length} sítios · ${uniq(core.national.sites.map((s) => s.uf).filter(Boolean)).length} estados`;
   }
 
   store = createStore({
@@ -312,7 +311,7 @@ function counters(id) {
       const anos = uniq(fy.map((r) => r.year));
       return [
         [fmtInt(core.national.sites.length), t('m_sites')],
-        [fmtInt(core.national.regions.length), t('lvl_region') === 'Região' ? 'Regiões' : 'Regions'],
+        [fmtInt(uniq(core.national.sites.map((s) => s.uf).filter(Boolean)).length), t('m_ufs')],
         [fmtInt(sum(fy.map((r) => r.n_events))), t('censuses')],
         [`${Math.min(...anos)}–${Math.max(...anos)}`, t('year_range')],
       ];
@@ -362,10 +361,10 @@ function buildMapBar(id, cfg) {
       <label for="f-level">${t('f_level')}</label>
       <select class="input" id="f-level"></select>
     </div>
-    <div class="field field--wide" id="f-zone-wrap" hidden>
-      <label for="f-zone">${nac ? t('lvl_region') : t('lvl_zone')}</label>
+    ${nac ? '' : `<div class="field field--wide" id="f-zone-wrap" hidden>
+      <label for="f-zone">${t('lvl_zone')}</label>
       <select class="input" id="f-zone"></select>
-    </div>
+    </div>`}
     ${nac ? `<div class="field" id="f-uf-wrap" hidden>
       <label for="f-uf">${t('lvl_uf')}</label>
       <select class="input" id="f-uf"></select>
@@ -407,7 +406,6 @@ function buildMapBar(id, cfg) {
 
   const niveis = nac
     ? [{ v: 'archipelago', label: t('lvl_brasil') },
-       { v: 'zone',        label: t('lvl_region') },
        { v: 'uf',          label: t('lvl_uf') },
        { v: 'uc',          label: t('lvl_uc') },
        { v: 'site',        label: t('lvl_site') }]
@@ -434,16 +432,14 @@ function buildMapBar(id, cfg) {
 
   const fonte = nac ? core.national.sites : core.sites;
 
-  const zones = nac
-    // Norte -> sul, não alfabética: a ordem geográfica é a leitura natural
-    // de uma costa, e é a mesma do gráfico estratificado por região.
-    ? REGION_ORDER.filter((r) => core.national.regions.includes(r))
-        .map((r) => ({ v: r, label: regionLabel(r) }))
-    : uniq(core.sites.map((s) => s.zone)).sort()
-        .map((z) => ({ v: z, label: core.sites.find((s) => s.zone === z)?.zone_label ?? z }));
-  fillSelect($('#f-zone'), [{ v: '', label: nac ? t('all_regions') : t('all_zones') }, ...zones],
-             store.get('zone') ?? '');
-  $('#f-zone').onchange = (e) => store.set('zone', e.target.value || null);
+  // As zonas de recife so existem na escala de Noronha; a hierarquia nacional e
+  // Brasil > estado > UC > sitio, sem nivel de regiao.
+  if (!nac) {
+    const zones = uniq(core.sites.map((s) => s.zone)).sort()
+      .map((z) => ({ v: z, label: core.sites.find((s) => s.zone === z)?.zone_label ?? z }));
+    fillSelect($('#f-zone'), [{ v: '', label: t('all_zones') }, ...zones], store.get('zone') ?? '');
+    $('#f-zone').onchange = (e) => store.set('zone', e.target.value || null);
+  }
 
   if (nac) {
     const ufs = uniq(core.national.sites.map((x) => x.uf).filter(Boolean)).sort()
@@ -734,11 +730,11 @@ function buildTemporalControls() {
 // ---------------------------------------------------------------------------
 // Serie do lugar selecionado
 //
-// Sem recorte, a serie de peixes e estratificada por REGIAO e nunca agregada
-// (a composicao geografica do "Brasil" muda a cada ano). Com um lugar
-// escolhido essa estratificacao perde sentido -- sobra uma regiao so -- e o
-// que interessa passa a ser o que acontece DENTRO dele: quais familias ou
-// especies dominam, e como riqueza e abundancia se movem no tempo.
+// Sem recorte, a serie de peixes e estratificada por NIVEL DE PROTECAO e nunca
+// agregada numa linha so (a composicao geografica do "Brasil" muda a cada ano).
+// Com um lugar escolhido essa estratificacao perde sentido e o que interessa
+// passa a ser o que acontece DENTRO dele: quais familias ou especies dominam, e
+// como riqueza e abundancia se movem no tempo.
 // ---------------------------------------------------------------------------
 
 const PARAMS = [
@@ -748,7 +744,7 @@ const PARAMS = [
   { v: 'censos',     k: 'p_censos' },
 ];
 
-/** Ha um lugar escolhido (regiao, estado, UC ou sitio)? */
+/** Ha um lugar escolhido (estado, UC ou sitio)? */
 const temRecorte = () => siteFilter().length > 0;
 
 /** A dimensao so se aplica a peixes; coral e bentos ja respondem ao recorte. */
@@ -782,8 +778,8 @@ function buildDimChips() {
     ? [{ v: 'params',  label: t('dim_params') },
        { v: 'family',  label: t('dim_family') },
        { v: 'species', label: t('dim_species') }]
-    // Sempre "Visao geral": chamar a vista padrao de peixes de "Por regiao"
-    // duplicava o rotulo do criterio `cmp:region`, que esta logo ao lado.
+    // Sempre "Visao geral": chamar a vista padrao de peixes de "Por protecao"
+    // duplicava o rotulo do criterio `cmp:protecao`, que esta logo ao lado.
     : [{ v: 'geral', label: t('dim_geral') }];
   const comparacoes = criteriosDisponiveis()
     .map((c) => ({ v: `cmp:${c.v}`, label: t(`cmp_dim_${c.v}`), cmp: true }));
@@ -820,7 +816,7 @@ function syncDim() {
   dim.hidden = $$('#t-dim .chip').length === 0;
 
   const comparando = comparandoDeFato();
-  // A metrica tambem vale na vista nacional por regiao (peixes sem recorte): e
+  // A metrica tambem vale na vista nacional por protecao (peixes sem recorte): e
   // ali que biomassa, tamanho e nivel trofico aparecem pela primeira vez. Nas
   // vistas parametros/familias/especies de um recorte ela nao se aplica.
   const peixeNacional = store.get('tDataset') === 'fish' && !temRecorte() && !comparando;
@@ -862,8 +858,7 @@ function renderTrilha() {
   }
 
   const passos = [];
-  if (zone) passos.push(nac ? regionLabel(zone)
-    : (fonte.find((s) => s.zone === zone)?.zone_label ?? zone));
+  if (zone) passos.push(fonte.find((s) => s.zone === zone)?.zone_label ?? zone);
   if (uf) passos.push(tituloUF(fonte.find((s) => s.uf === uf)?.uf_nome ?? uf));
   if (uc) passos.push(uc);
   if (site) passos.push(fonte.find((s) => s.Site === site)?.site_label ?? site);
@@ -894,7 +889,7 @@ function renderTrilha() {
  */
 /**
  * Metrica de PEIXES escolhida no grafico principal (chips `#t-metrica`). Vale
- * para a vista nacional por regiao e para a comparacao; nas vistas
+ * para a vista nacional por protecao e para a comparacao; nas vistas
  * parametros/familias/especies de um recorte ela nao se aplica.
  */
 function metricaPeixe() {
@@ -1002,7 +997,7 @@ async function renderTemporalComparacao() {
 
 /**
  * Serie dentro do recorte. Devolve `true` se tratou o caso; `false` deixa o
- * fluxo antigo (estratificacao por regiao) seguir.
+ * fluxo antigo (estratificacao por protecao) seguir.
  */
 async function renderTemporalRecorte() {
   if (!dimAplicavel()) return false;
@@ -1276,14 +1271,15 @@ async function renderTemporal() {
   if (await renderTemporalComparacao()) return;
 
   // Com um lugar escolhido, a serie passa a ser DELE. Isso vem antes da
-  // estratificacao por regiao porque, dentro de um recorte, a regiao e
-  // constante: a serie "por regiao" de um sitio e uma linha so, inutil.
+  // estratificacao por protecao porque, dentro de um sitio, o nivel de protecao
+  // e constante: a serie "por protecao" de um sitio e uma linha so, inutil.
   if (await renderTemporalRecorte()) return;
 
-  // O peixe nacional é estratificado por REGIÃO, nunca agregado. A composição
-  // geográfica do "Brasil" muda a cada ano — o Rio é 44% dos censos e a única
-  // região presente de 2001 a 2005 — então uma linha nacional única mostraria
-  // geografia disfarçada de tendência.
+  // O peixe nacional é estratificado por NÍVEL DE PROTEÇÃO, nunca agregado numa
+  // linha só. A composição geográfica do "Brasil" muda a cada ano — o Rio é 44%
+  // dos censos e quase só ele existe de 2001 a 2005 — então uma linha nacional
+  // única mostraria geografia disfarçada de tendência. (A estratificação era por
+  // região; foi trocada porque região deixou de existir na plataforma.)
   if (core.national) {
     if (ds === 'fish')  return await renderTemporalNacional();
     if (ds === 'coral') return renderTemporalCorais();
@@ -1360,30 +1356,32 @@ function renderTemporalComunidade() {
   chart('chart-heat')?.setOption(heatmapOption(rows, RAMP.benthos, '%'), true);
 }
 
-/** Peixe nacional: uma série por região, em indivíduos por censo. */
+/** Peixe nacional: uma série por nível de proteção. */
 async function renderTemporalNacional() {
   const eu = temporalToken;
   const spec = metricaPeixe();
   const abund = spec.v === 'abundancia';
-  const regiao = new Map(core.national.sites.map((s) => [s.Site, s.region]));
+  const protecao = new Map(core.national.sites.map((s) => [s.Site, nivelProtecao(s)]));
+  const rotuloProt = (g) => t(`prot_${g}`);
+  const ordemProt = [...PROTECAO, 'outra'];
   const linhas = await valoresPeixe(spec);
   if (eu !== temporalToken) return;           // uma renderizacao mais nova assumiu
 
   const rows = linhas.map((r) => ({
     Site: r.site_id, Year: r.year,
-    group: regiao.get(r.site_id) ?? '—',
+    group: protecao.get(r.site_id) ?? 'outra',
     value: r.value, n_events: r.n_events, total: r.total,
   })).filter((r) => Number.isFinite(r.value));
 
   const alvo = siteFilter();
   const rs = alvo.length ? rows.filter((r) => alvo.includes(r.Site)) : rows;
 
-  setHTML('#read-e1-time', readE1Nacional(rs, regionLabel, { abundancia: abund }));
+  setHTML('#read-e1-time', readE1Nacional(rs, rotuloProt, { abundancia: abund }));
   const fm = spec.func ?? {};
   const rotuloM = rotuloMetricaPeixe(spec);
   const sub = getLang() === 'pt'
-    ? `${rotuloM}, por região — nunca agregado em uma linha só`
-    : `${rotuloM}, by region — never pooled into a single line`;
+    ? `${rotuloM}, por nível de proteção — nunca agregado em uma linha só`
+    : `${rotuloM}, by protection level — never pooled into a single line`;
   $('#trend-sub').textContent = sub;
   $('#heat-sub').textContent = sub;
   showTaxonCard(false);
@@ -1393,9 +1391,9 @@ async function renderTemporalNacional() {
     // "Area 100%" so faz sentido para a abundancia (partes de um todo); biomassa,
     // tamanho e nivel trofico sao sempre linhas.
     trendOption(rs, { type: abund ? store.get('tType') : 'lines', unit: fm.unidade ?? '',
-                      nameOf: regionLabel, escala: !!fm.escala }), true);
+                      nameOf: rotuloProt, escala: !!fm.escala, ordem: ordemProt }), true);
   chart('chart-heat')?.setOption(
-    heatmapOption(rs, RAMP.fish, fm.unidade ?? '', regionLabel, { escala: !!fm.escala }), true);
+    heatmapOption(rs, RAMP.fish, fm.unidade ?? '', rotuloProt, { escala: !!fm.escala, ordem: ordemProt }), true);
 }
 
 /** O card de táxons só faz sentido onde há tabela de táxon por sítio/ano. */
@@ -1505,7 +1503,7 @@ function rotuloMetricaTx(ds, nivel, metrica) {
  * nível de proteção, que é o corte que a pergunta "dentro ou fora da UC"
  * pede. `null` quando o recorte não se divide de jeito nenhum.
  */
-function grupoAtivo(chave, { regionalSemRecorte = false } = {}) {
+function grupoAtivo(chave) {
   const disp = criteriosDisponiveis().map((c) => c.v);
   if (!disp.length) return null;
   const guardado = store.get(chave);
@@ -1513,10 +1511,6 @@ function grupoAtivo(chave, { regionalSemRecorte = false } = {}) {
   if (guardado && disp.includes(guardado)) return guardado;
   const cmp = criterioAtivo();
   if (cmp) return cmp;
-  // Sem recorte, o painel mostra o PAIS. Uma mediana nacional unica mistura
-  // regioes cuja presenca muda de ano para ano, entao o padrao e uma linha por
-  // regiao -- a mesma regra da tendencia por grupo, que nunca agrega.
-  if (regionalSemRecorte && !temRecorte() && disp.includes('region')) return 'region';
   return disp.includes('protecao') ? 'protecao' : disp[0];
 }
 const txGrupoAtivo = () => grupoAtivo('txGrupo');
@@ -1636,12 +1630,12 @@ function notaGrupos({ celulas, grupos, criterio, grupoDoSitio, nomeGrupo, descar
       : `Left out, as too small or beyond the four largest: ${fora}.`}</span>`);
   }
 
-  // So a protecao se confunde com a geografia: estado, regiao e UC SAO lugares,
+  // So a protecao se confunde com a geografia: estado e UC SAO lugares,
   // e avisar que "parte do contraste e geografia" ali seria tautologia.
   if (criterio === 'protecao') {
     const desenho = !!store.get('drawnSites')?.length;
-    const { level, zone } = store.state;
-    const nacional = desenho || level === 'archipelago' || (level === 'zone' && !zone);
+    const { level } = store.state;
+    const nacional = desenho || level === 'archipelago';
     const a = nacional ? avisoGeografia('protecao', grupos, { desenho }) : null;
     if (a) partes.push(`<span class="nota">${a}</span>`);
   }
@@ -2159,7 +2153,7 @@ const FN_CAT = '\u0002fn';
 let fnToken = 0;
 
 const fnMetrica = () => FN_METRICAS.find((m) => m.v === store.get('fnMetrica')) ?? FN_METRICAS[0];
-const fnGrupoAtivo = () => grupoAtivo('fnGrupo', { regionalSemRecorte: true });
+const fnGrupoAtivo = () => grupoAtivo('fnGrupo');
 
 function fnPintarControles() {
   makeChips($('#fn-metrica'),
@@ -2316,15 +2310,15 @@ function fnNotaHTML({ celulas, G, criterio, m, cerca, alvo, tipo }) {
     const porAno = new Map();
     for (const c of celulas) {
       if (!porAno.has(c.Year)) porAno.set(c.Year, new Set());
-      porAno.get(c.Year).add(alvo.get(c.Site)?.region);
+      porAno.get(c.Year).add(alvo.get(c.Site)?.uf);
     }
     const anosOrd = [...porAno.keys()].sort((a, b) => a - b);
     const a0 = anosOrd[0], a1 = anosOrd[anosOrd.length - 1];
     const n0 = porAno.get(a0).size, n1 = porAno.get(a1).size;
     if (n0 !== n1) {
       partes.push(`<span class="nota">${pt
-        ? `Sem agrupar, a linha é a mediana do país inteiro, e a geografia por trás dela muda: em ${a0} havia dados de ${plural(n0, 'região', 'regiões')}; em ${a1}, de ${n1}. Agrupe por região para comparar o que é comparável.`
-        : `Ungrouped, the line is the median of the whole country, and the geography behind it shifts: ${a0} had data from ${plural(n0, 'region')}; ${a1}, from ${n1}. Group by region to compare like with like.`}</span>`);
+        ? `Sem agrupar, a linha é a mediana do país inteiro, e a geografia por trás dela muda: em ${a0} havia dados de ${plural(n0, 'estado')}; em ${a1}, de ${n1}. Agrupe por estado ou por proteção para comparar o que é comparável.`
+        : `Ungrouped, the line is the median of the whole country, and the geography behind it shifts: ${a0} had data from ${plural(n0, 'state')}; ${a1}, from ${n1}. Group by state or protection level to compare like with like.`}</span>`);
     }
   }
 
@@ -2964,14 +2958,12 @@ function criterioAtivo() {
 function chaveCmp(site, criterio) {
   if (criterio === 'protecao') return nivelProtecao(site);
   if (criterio === 'uf')       return site.uf ?? null;
-  if (criterio === 'region')   return site.region ?? null;
   if (criterio === 'uc')       return site.ucs?.[0]?.nome ?? null;
   return null;
 }
 
 const rotuloCmp = (v, criterio) => {
   if (criterio === 'protecao') return t(`prot_${v}`);
-  if (criterio === 'region')   return regionLabel(v);
   if (criterio === 'uf') {
     const s = (core.national?.sites ?? []).find((x) => x.uf === v);
     return tituloUF(s?.uf_nome ?? v);
@@ -3038,13 +3030,13 @@ function coresCmp(grupos) {
  *
  * MEDIDO, nao afirmado. Um texto fixo sobre a composicao envelhece junto com o
  * dado -- este aqui afirmava que as ilhas nao tinham sitio fora de UC, e
- * deixou de ser verdade quando a classificacao de regiao foi corrigida.
+ * deixou de ser verdade quando a classificacao geografica foi corrigida.
  *
  * Importa porque "Protecao integral" tem 48% dos sitios nas ilhas oceanicas e
  * "Fora de UC" 7%, e as ilhas tem biomassa alta (cardumes de Melichthys
  * niger): sem o aviso, um contraste de geografia le-se como efeito da protecao.
  *
- * Mede, para cada regiao, o vao entre o grupo que mais e o que menos a ocupa.
+ * Mede, para cada estado, o vao entre o grupo que mais e o que menos o ocupa.
  * So avisa com vao de 30 pontos ou mais.
  */
 function avisoGeografia(criterio, chaves, { desenho = false } = {}) {
@@ -3054,10 +3046,11 @@ function avisoGeografia(criterio, chaves, { desenho = false } = {}) {
   for (const s2 of sit) {
     const m = porGrupo.get(chaveCmp(s2, criterio));
     if (!m) continue;
-    m.set(s2.region, (m.get(s2.region) ?? 0) + 1);
+    if (!s2.uf) continue;
+    m.set(s2.uf, (m.get(s2.uf) ?? 0) + 1);
   }
   let pior = null;
-  for (const reg of uniq(sit.map((s2) => s2.region))) {
+  for (const reg of uniq(sit.map((s2) => s2.uf).filter(Boolean))) {
     const fracoes = chaves.map((g) => {
       const m = porGrupo.get(g);
       const tot = sum([...m.values()]);
@@ -3071,8 +3064,8 @@ function avisoGeografia(criterio, chaves, { desenho = false } = {}) {
   if (!pior) return null;
   const nm = (x) => rotuloCmp(x.g, criterio);
   return pt
-    ? `Os grupos não ocupam a mesma geografia: <strong>${nm(pior.alto)}</strong> tem ${fmt(100 * pior.alto.f, 0)}% dos sítios em ${regionLabel(pior.reg)}, contra ${fmt(100 * pior.baixo.f, 0)}% de <strong>${nm(pior.baixo)}</strong>. Parte do contraste é geografia, não ${criterio === 'protecao' ? 'proteção' : 'o critério escolhido'}. ${desenho ? 'Desenhe uma área menor, dentro de uma região só.' : 'Escolha uma região para separar as duas coisas.'}`
-    : `The groups do not share the same geography: <strong>${nm(pior.alto)}</strong> has ${fmt(100 * pior.alto.f, 0)}% of its sites in ${regionLabel(pior.reg)}, against ${fmt(100 * pior.baixo.f, 0)}% for <strong>${nm(pior.baixo)}</strong>. Part of the contrast is geography, not the chosen criterion. ${desenho ? 'Draw a smaller area, within a single region.' : 'Pick a region to separate the two.'}`;
+    ? `Os grupos não ocupam a mesma geografia: <strong>${nm(pior.alto)}</strong> tem ${fmt(100 * pior.alto.f, 0)}% dos sítios em ${rotuloCmp(pior.reg, 'uf')}, contra ${fmt(100 * pior.baixo.f, 0)}% de <strong>${nm(pior.baixo)}</strong>. Parte do contraste é geografia, não ${criterio === 'protecao' ? 'proteção' : 'o critério escolhido'}. ${desenho ? 'Desenhe uma área menor, dentro de um estado só.' : 'Escolha um estado para separar as duas coisas.'}`
+    : `The groups do not share the same geography: <strong>${nm(pior.alto)}</strong> has ${fmt(100 * pior.alto.f, 0)}% of its sites in ${rotuloCmp(pior.reg, 'uf')}, against ${fmt(100 * pior.baixo.f, 0)}% for <strong>${nm(pior.baixo)}</strong>. Part of the contrast is geography, not the chosen criterion. ${desenho ? 'Draw a smaller area, within a single state.' : 'Pick a state to separate the two.'}`;
 }
 
 /**
@@ -3083,16 +3076,17 @@ function avisoGeografia(criterio, chaves, { desenho = false } = {}) {
 function avisosComparacao(grupos) {
   const pt = getLang() === 'pt';
   const avisos = [];
-  const { level, zone } = store.state;
+  const { level } = store.state;
   const desenho = !!store.get('drawnSites')?.length;
   // Num desenho o nivel e sempre 'archipelago', mas o recorte nao e o pais:
-  // sem distinguir os dois, o conselho mandava "escolher uma regiao" para
-  // quem acabou de circular pontos na tela e nao usa o seletor de regiao.
-  const nacional = desenho
-    || level === 'archipelago' || (level === 'zone' && !zone);
+  // sem distinguir os dois, o conselho mandava "escolher um estado" para
+  // quem acabou de circular pontos na tela e nao usa o seletor de estado.
+  const nacional = desenho || level === 'archipelago';
 
-  // Confundimento geografico: MEDIDO, nao afirmado (ver `avisoGeografia`).
-  if (nacional) {
+  // Confundimento geografico: MEDIDO, nao afirmado (ver `avisoGeografia`). So para
+  // a protecao: estado e UC ja SAO lugares, e avisar que "parte do contraste e
+  // geografia" ao comparar estados diria "RN tem 100% dos sitios no RN".
+  if (nacional && store.get('cmpBy') === 'protecao') {
     const a = avisoGeografia(store.get('cmpBy'), grupos.map((g) => g.v), { desenho });
     if (a) avisos.push(a);
   }
@@ -3176,13 +3170,13 @@ function renderCmpBar() {
  * se atropelaram: trocar de nivel desligava os poligonos de UC no meio de uma
  * comparacao dentro x fora.
  */
-const CAMADA_DO_CRITERIO = { protecao: 'ucs', uc: 'ucs', uf: 'estados', region: 'none' };
+const CAMADA_DO_CRITERIO = { protecao: 'ucs', uc: 'ucs', uf: 'estados' };
 
 function camadaPreferida(lvl = store.get('level'), nac = store.get('scope') === 'national') {
   if (!nac) return store.get('layer');
   if (store.get('cmpOn')) return CAMADA_DO_CRITERIO[store.get('cmpBy')] ?? 'none';
   // O automatismo ACRESCENTA, nunca remove: se ha uma camada escolhida na
-  // mao, ela fica. Antes, escolher "Regiao" apagava os limites de UC que a
+  // mao, ela fica. Antes, trocar de criterio apagava os limites de UC que a
   // pessoa tinha acabado de ligar -- conveniencia desfazendo escolha.
   const atual = store.get('layer');
   const sugerida = ({ uf: 'estados', uc: 'ucs' }[lvl]) ?? null;
@@ -3219,11 +3213,10 @@ function sincronizarCoresMapa() {
 
 /** Chave da área selecionada, ou null quando o recorte é o país inteiro. */
 function areaSelecionada() {
-  const { level, zone, uf, uc } = store.state;
+  const { level, uf, uc } = store.state;
   if (store.get('scope') !== 'national') return null;
-  if (level === 'uf'   && uf)   return { tipo: 'uf', chave: uf };
-  if (level === 'uc'   && uc)   return { tipo: 'uc', chave: uc };
-  if (level === 'zone' && zone) return { tipo: 'region', chave: zone };
+  if (level === 'uf' && uf) return { tipo: 'uf', chave: uf };
+  if (level === 'uc' && uc) return { tipo: 'uc', chave: uc };
   return null;
 }
 
@@ -3252,7 +3245,9 @@ function renderProfile() {
   const present = DATASETS.filter((ds) => s[`has_${ds}`]);
   let html = `<div class="ds-badges">${present
     .map((ds) => `<span class="ds-badge" style="--c:${DS_COLOR[ds]}">${t(`ds_${ds}`)}</span>`).join('')}</div>`;
-  html += row(t('lvl_zone'), s.zone_label ?? s.zone ?? '—');
+  html += (store.get('scope') === 'national' && core.national)
+    ? row(t('lvl_uf'), s.uf_nome ? tituloUF(s.uf_nome) : (s.uf ?? '—'))
+    : row(t('lvl_zone'), s.zone_label ?? s.zone ?? '—');
 
   // Na escala nacional o sítio é do ReefSYN e as métricas vêm de outra tabela.
   if (store.get('scope') === 'national' && core.national) {
@@ -3342,7 +3337,7 @@ function especiesHTML(sp) {
     }).join('')}</div>`;
 }
 
-/** Perfil de um estado, UC ou região. */
+/** Perfil de um estado ou de uma UC. */
 function renderAreaProfile({ tipo, chave }) {
   const panel = $('#profile');
   let titulo, selo, stats = '', sp = [];
@@ -3361,21 +3356,6 @@ function renderAreaProfile({ tipo, chave }) {
     selo = alvo?.cat ?? t('lvl_uc');
     if (r) stats = statsArea(r);
     sp = (core.fish_sp_by_uc ?? []).filter((x) => x.cd_cnuc === alvo?.cd).slice(0, 4);
-  } else {
-    const codes = new Set((core.national?.sites ?? [])
-      .filter((x) => x.region === chave).map((x) => x.Site));
-    const rs = (core.reef_fish_summary ?? []).filter((x) => codes.has(x.site_id));
-    const anos = (core.reef_fish_year ?? []).filter((x) => codes.has(x.site_id));
-    const censos = sum(anos.map((x) => x.n_events));
-    titulo = regionLabel(chave);
-    selo = t('lvl_region');
-    // Riqueza da região não é somável; sem tabela por região, informamos o
-    // que é somável e omitimos o resto em vez de publicar número errado.
-    stats = row(t('m_sites'), fmtInt(codes.size))
-          + row(t('censuses'), fmtInt(censos))
-          + row(t('individuals'), fmtInt(sum(anos.map((x) => x.total_abundance))))
-          + row(t('year_range'), anos.length
-              ? `${Math.min(...anos.map((x) => x.year))}–${Math.max(...anos.map((x) => x.year))}` : '—');
   }
 
   $('#profile-kind').textContent = t('profile_area');
