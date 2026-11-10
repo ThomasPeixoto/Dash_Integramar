@@ -3257,9 +3257,11 @@ function renderProfile() {
   const present = DATASETS.filter((ds) => s[`has_${ds}`]);
   let html = `<div class="ds-badges">${present
     .map((ds) => `<span class="ds-badge" style="--c:${DS_COLOR[ds]}">${t(`ds_${ds}`)}</span>`).join('')}</div>`;
-  html += (store.get('scope') === 'national' && core.national)
-    ? row(t('lvl_uf'), s.uf_nome ? tituloUF(s.uf_nome) : (s.uf ?? '—'))
-    : row(t('lvl_zone'), s.zone_label ?? s.zone ?? '—');
+  // Na escala nacional o estado ja aparece no bloco do ReefSYN, logo abaixo; esta
+  // linha era a "zona" (a regiao, que deixou de existir). So Noronha tem zona.
+  if (!(store.get('scope') === 'national' && core.national)) {
+    html += row(t('lvl_zone'), s.zone_label ?? s.zone ?? '—');
+  }
 
   // Na escala nacional o sítio é do ReefSYN e as métricas vêm de outra tabela.
   if (store.get('scope') === 'national' && core.national) {

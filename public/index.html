@@ -372,11 +372,13 @@
       <div id="map"></div>
       <aside class="panel panel--profile" id="profile">
         <div class="panel-head">
+          <!-- O X fica a ESQUERDA: o painel encosta no canto direito do mapa, onde
+               os controles de zoom do Leaflet ficam por cima dele e tapavam o botao. -->
+          <button class="panel-close" id="profile-close" aria-label="Fechar">&times;</button>
           <div>
             <p class="eyebrow" id="profile-kind">Perfil do sítio</p>
             <h3 class="display" id="profile-title"></h3>
           </div>
-          <button class="panel-close" id="profile-close" aria-label="Fechar">&times;</button>
         </div>
         <div class="panel-body" id="profile-body"></div>
       </aside>

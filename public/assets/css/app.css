@@ -355,7 +355,7 @@ main { height: calc(100vh - var(--appbar-h)); position: relative; }
   appearance: none; border: 0; background: transparent;
   color: var(--muted); cursor: pointer;
   font-size: 20px; line-height: 1; padding: 2px 4px;
-  margin-left: auto; border-radius: var(--r-sm);
+  flex: none; margin: -2px 0 0 -4px; border-radius: var(--r-sm);
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .panel-close:hover { background: var(--offwhite); color: var(--navy); }
